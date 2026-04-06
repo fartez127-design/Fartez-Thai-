@@ -1,0 +1,185 @@
+-- [[ 1. SETUP & UI SAFE PARENT ]] --
+local SafeParent = pcall(function() return gethui() end) and gethui() or game.CoreGui
+if SafeParent:FindFirstChild("fartezxgemini_Select") then SafeParent.fartezxgemini_Select:Destroy() end
+
+local plr = game.Players.LocalPlayer
+local vim = game:GetService("VirtualInputManager")
+local runService = game:GetService("RunService")
+
+-- [[ SETTINGS ]] --
+_G.AutoTP = false
+_G.AutoSteal = false
+_G.AutoCollect = false 
+_G.AutoTrain = false 
+_G.GodMode = false 
+_G.SavedPos = nil
+_G.StealRange = 100 
+_G.SelectedBlocks = {
+    ["Common"] = false, ["Rare"] = false, ["Epic"] = false, ["Legendary"] = false, 
+    ["Mythic"] = false, ["Secret"] = false, ["Brainrot"] = false, ["Exclusive"] = false, 
+    ["OG"] = false, ["Divine"] = true, ["Lava"] = false, ["Ghost"] = false, ["67"] = false
+}
+
+-- 🚫 บัญชีดำ (Block ทุกอย่างที่เสีย Robux/เงินซื้อโซน)
+local Blacklist = {
+    "shop", "buy", "purchase", "gamepass", "robux", "product", "teleport",
+    "only", "x2", "auto collect", "[op]", "cheap", "easter", "floor", "new",
+    "skip", "quest", "exclusive", "griffin", "r$", "extinct", "grande",
+    "strawberry", "elephant", "sell"
+}
+
+-- [[ 2. UI DESIGN ]] --
+local gui = Instance.new("ScreenGui", SafeParent)
+gui.Name = "fartezxgemini_Select"
+
+local toggleBtn = Instance.new("TextButton", gui)
+toggleBtn.Size = UDim2.new(0, 50, 0, 50); toggleBtn.Position = UDim2.new(0, 20, 0, 150)
+toggleBtn.Text = "FZ"; toggleBtn.BackgroundColor3 = Color3.fromRGB(180, 0, 0); toggleBtn.TextColor3 = Color3.new(1, 1, 1)
+toggleBtn.Draggable = true; Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(0.5, 0)
+
+local main = Instance.new("Frame", gui)
+main.Size = UDim2.new(0, 250, 0, 460); main.Position = UDim2.new(0.5, -125, 0.3, 0)
+main.BackgroundColor3 = Color3.fromRGB(20, 20, 20); main.Visible = false; main.Active = true; main.Draggable = true
+Instance.new("UICorner", main)
+
+local title = Instance.new("TextLabel", main)
+title.Size = UDim2.new(1, 0, 0, 35); title.Text = "FARTEZ HUB (pull lucky blocks)"; title.BackgroundColor3 = Color3.fromRGB(80, 0, 0); title.TextColor3 = Color3.new(1, 1, 1)
+Instance.new("UICorner", title)
+
+local function createBtn(text, pos, sizeX)
+    local btn = Instance.new("TextButton", main)
+    btn.Size = UDim2.new(sizeX, -10, 0, 40); btn.Position = pos
+    btn.Text = text; btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60); btn.TextColor3 = Color3.new(1, 1, 1); btn.TextScaled = true
+    Instance.new("UICorner", btn)
+    return btn
+end
+
+local btnTP = createBtn("AUTO TP", UDim2.new(0, 5, 0, 45), 0.5)
+local btnSteal = createBtn("STEAL", UDim2.new(0.5, 5, 0, 45), 0.5)
+local btnCollect = createBtn("COLLECT", UDim2.new(0, 5, 0, 90), 0.5)
+local btnTrain = createBtn("TRAIN", UDim2.new(0.5, 5, 0, 90), 0.5)
+local btnGod = createBtn("GOD MODE (NO DMG/FLING)", UDim2.new(0, 5, 0, 135), 1)
+
+local scroll = Instance.new("ScrollingFrame", main)
+scroll.Size = UDim2.new(1, -20, 1, -190); scroll.Position = UDim2.new(0, 10, 0, 185)
+scroll.CanvasSize = UDim2.new(0, 0, 0, 600); scroll.BackgroundTransparency = 1; scroll.ScrollBarThickness = 5
+Instance.new("UIListLayout", scroll).Padding = UDim.new(0, 5)
+
+for _, blockName in pairs({"Common", "Rare", "Epic", "Legendary", "Mythic", "Secret", "Brainrot", "Exclusive", "OG", "Divine", "Lava", "Ghost", "67"}) do
+    local bBtn = Instance.new("TextButton", scroll)
+    bBtn.Size = UDim2.new(1, -10, 0, 35); bBtn.Text = blockName
+    bBtn.BackgroundColor3 = _G.SelectedBlocks[blockName] and Color3.fromRGB(0, 120, 0) or Color3.fromRGB(40, 40, 40)
+    bBtn.TextColor3 = Color3.new(1, 1, 1)
+    Instance.new("UICorner", bBtn)
+    bBtn.MouseButton1Click:Connect(function()
+        _G.SelectedBlocks[blockName] = not _G.SelectedBlocks[blockName]
+        bBtn.BackgroundColor3 = _G.SelectedBlocks[blockName] and Color3.fromRGB(0, 120, 0) or Color3.fromRGB(40, 40, 40)
+    end)
+end
+
+-- [[ 3. LOGIC CONTROLS ]] --
+toggleBtn.MouseButton1Click:Connect(function() main.Visible = not main.Visible end)
+btnTP.MouseButton1Click:Connect(function() _G.AutoTP = not _G.AutoTP; btnTP.BackgroundColor3 = _G.AutoTP and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(60, 60, 60); if _G.AutoTP then _G.SavedPos = plr.Character.HumanoidRootPart.CFrame end end)
+btnSteal.MouseButton1Click:Connect(function() _G.AutoSteal = not _G.AutoSteal; btnSteal.BackgroundColor3 = _G.AutoSteal and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(60, 60, 60) end)
+btnCollect.MouseButton1Click:Connect(function() _G.AutoCollect = not _G.AutoCollect; btnCollect.BackgroundColor3 = _G.AutoCollect and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(60, 60, 60) end)
+btnTrain.MouseButton1Click:Connect(function() _G.AutoTrain = not _G.AutoTrain; btnTrain.BackgroundColor3 = _G.AutoTrain and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(60, 60, 60) end)
+btnGod.MouseButton1Click:Connect(function() _G.GodMode = not _G.GodMode; btnGod.BackgroundColor3 = _G.GodMode and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(60, 60, 60) end)
+
+-- [[ LOOP: STEAL & COLLECT (Combined & Optimized) ]] --
+task.spawn(function()
+    while task.wait(0.1) do
+        pcall(function()
+            local char = plr.Character
+            if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+            local rootPos = char.HumanoidRootPart.Position
+
+            for _, v in pairs(workspace:GetDescendants()) do
+                -- 1. STEAL LUCKY BLOCKS (Priority)
+                if _G.AutoSteal and (v:IsA("ClickDetector") or v:IsA("ProximityPrompt")) then
+                    local model = v:FindFirstAncestorOfClass("Model") or v.Parent
+                    if model then
+                        for name, sel in pairs(_G.SelectedBlocks) do
+                            if sel and model.Name:find(name) then
+                                local target = model:FindFirstChildWhichIsA("BasePart") or model
+                                if (rootPos - target.Position).Magnitude < _G.StealRange then
+                                    if v:IsA("ClickDetector") then fireclickdetector(v) else fireproximityprompt(v) end
+                                end
+                            end
+                        end
+                    end
+                end
+
+                -- 2. COLLECT MONEY PADS
+                if _G.AutoCollect and (v:IsA("TouchTransmitter") or v.Name == "TouchInterest") then
+                    local part = v.Parent
+                    if part and part:IsA("BasePart") then
+                        local isSafe = false
+                        for _, txt in pairs(part:GetDescendants()) do
+                            if txt:IsA("TextLabel") then
+                                if txt.Text:find("%$") or txt.Text:find("%+") then isSafe = true end
+                                for _, b in pairs(Blacklist) do if txt.Text:lower():find(b, 1, true) then isSafe = false break end end
+                            end
+                        end
+                        if isSafe then firetouchinterest(char.HumanoidRootPart, part, 0); firetouchinterest(char.HumanoidRootPart, part, 1) end
+                    end
+                end
+            end
+        end)
+    end
+end)
+
+-- [[ LOOP: TRAIN (Auto Equip & Use) ]] --
+task.spawn(function()
+    while task.wait(0.1) do
+        if _G.AutoTrain and plr.Character then
+            pcall(function()
+                local tool = plr.Character:FindFirstChildOfClass("Tool")
+                if not tool then
+                    for _, t in pairs(plr.Backpack:GetChildren()) do
+                        if t:IsA("Tool") then plr.Character.Humanoid:EquipTool(t); tool = t; break end
+                    end
+                end
+                if tool then
+                    tool:Activate()
+                    local cam = workspace.CurrentCamera; local center = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y / 2)
+                    vim:SendMouseButtonEvent(center.X, center.Y, 0, true, game, 1); task.wait(0.01); vim:SendMouseButtonEvent(center.X, center.Y, 0, false, game, 1)
+                end
+            end)
+        end
+    end
+end)
+
+-- [[ LOOP: GOD MODE (Anti-Damage & Anti-Fling) ]] --
+runService.Stepped:Connect(function()
+    if _G.GodMode and plr.Character then
+        pcall(function()
+            local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                for _, v in pairs(plr.Character:GetDescendants()) do if v:IsA("TouchTransmitter") then v:Destroy() end end
+                hrp.AssemblyLinearVelocity = Vector3.new(0, hrp.AssemblyLinearVelocity.Y, 0)
+                hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+            end
+        end)
+    end
+end)
+
+-- [[ LOOP: AUTO TP ]] --
+task.spawn(function()
+    while task.wait(0.5) do
+        if _G.AutoTP and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+            pcall(function()
+                for _, v in pairs(workspace:GetDescendants()) do
+                    if v:IsA("Model") then
+                        for name, sel in pairs(_G.SelectedBlocks) do
+                            if sel and v.Name:find(name) then
+                                local p = v:FindFirstChildWhichIsA("BasePart")
+                                if p then plr.Character.HumanoidRootPart.CFrame = p.CFrame * CFrame.new(0, 4, 0) return end
+                            end
+                        end
+                    end
+                end
+                if _G.SavedPos then plr.Character.HumanoidRootPart.CFrame = _G.SavedPos end
+            end)
+        end
+    end
+end)
