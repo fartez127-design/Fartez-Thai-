@@ -879,10 +879,10 @@ task.spawn(function()
                         task.wait(0.2)
                     end
                 else
-                    if StatusLabel then StatusLabel.Text = "Status: [Eggs] รอไข่เกิดในเขตบ้าน (30 Studs)..." end
+                    if StatusLabel then StatusLabel.Text = "ถ่าไข่ออกจากหฮูดากไก่" end
                 end
             else
-                if StatusLabel then StatusLabel.Text = "Status: [Eggs] ไม่พบโฟลเดอร์ไข่ในเกม!" end
+                if StatusLabel then StatusLabel.Text = "ยังบ่พ้อไข่" end
             end
         end
     end
