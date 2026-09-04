@@ -1,0 +1,912 @@
+-- [[ 1. SETUP & CORE VARIABLES ]] --
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local player = Players.LocalPlayer or Players.PlayerAdded:Wait()
+local PlayerGui = player:WaitForChild("PlayerGui", 5) or player:FindFirstChildOfClass("PlayerGui")
+
+-- ระบบจัดการ Parent ป้องกัน UI ค้างบนมือถือ
+local SafeParent = PlayerGui
+pcall(function()
+    if gethui then
+        SafeParent = gethui()
+    elseif game:GetService("CoreGui") then
+        SafeParent = game:GetService("CoreGui")
+    end
+end)
+
+-- ลบ UI เก่าทิ้งก่อนโหลดใหม่
+if SafeParent and SafeParent:FindFirstChild("FARTEZ_LUCKY_HUB") then 
+    pcall(function() SafeParent.FARTEZ_LUCKY_HUB:Destroy() end) 
+end
+if PlayerGui and PlayerGui:FindFirstChild("FARTEZ_LUCKY_HUB") then 
+    pcall(function() PlayerGui.FARTEZ_LUCKY_HUB:Destroy() end) 
+end
+
+-- [[ CONFIG & SCRIPT STATES ]] --
+local Config = {
+    AutoCollectScrap = false,
+    CollectAmount = 10,        -- จำนวนขยะที่ต้องการเก็บต่อรอบ (1-20)
+    
+    AutoCollectEggs = false,   -- เปิด/ปิดเก็บไข่อัตโนมัติ (ล็อกรัศมี 30 Studs)
+    HomeZoneRadius = 30,     -- รัศมีขอบเขตบ้าน (30 Studs)
+    SavedHomePos = nil,        -- จุดบันทึกตำแหน่งบ้านหลัก
+    
+    AutoIncubatorClaim = false, -- รับไข่จากตู้ฟักอัตโนมัติ
+    
+    -- ฟังก์ชัน
+    AutoChaos = false,         -- ระบบ Chaos Mode + Encourage
+    AutoTower = false,         -- ระบบ Auto Start Tower
+    AutoRebirth = false,       -- ระบบออโต้รีบอร์ธ
+    
+    -- สถานะระบบ Auto Upgrade ต่างๆ
+    AutoUpgradeRecycler = false,
+    AutoBuyFeeder = false,
+    AutoUpgradeFeeder = false,
+    AutoBuyCoop = false,
+    AutoUpgradeCoop = false
+}
+
+-- [[ THEME SETUP ]] --
+local Theme = {
+    Background = Color3.fromRGB(5, 5, 8),
+    Surface = Color3.fromRGB(15, 15, 20),
+    SurfaceLight = Color3.fromRGB(25, 25, 35),
+    Accent = Color3.fromRGB(4, 203, 41),
+    Text = Color3.fromRGB(255, 255, 255),
+    TextDim = Color3.fromRGB(150, 150, 150),
+    Gold = Color3.fromRGB(255, 215, 0),
+    Success = Color3.fromRGB(4, 203, 41),
+    Danger = Color3.fromRGB(255, 65, 65)
+}
+
+-- [[ 2. UI CREATION ]] --
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "FARTEZ_LUCKY_HUB"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.DisplayOrder = 9999
+ScreenGui.Parent = SafeParent
+
+local Main = Instance.new("Frame", ScreenGui)
+Main.Size = UDim2.new(0, 290, 0, 420)
+Main.Position = UDim2.new(0.5, -145, 0.5, -210)
+Main.BackgroundColor3 = Theme.Background
+Main.BorderSizePixel = 0
+Main.ClipsDescendants = true
+Main.Active = true
+Main.Draggable = true
+Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 12)
+
+local toggleBtn = Instance.new("ImageButton", ScreenGui)
+toggleBtn.Size = UDim2.new(0, 50, 0, 50)
+toggleBtn.Position = UDim2.new(0, 15, 0, 150)
+toggleBtn.BackgroundColor3 = Theme.Surface
+toggleBtn.Image = "rbxthumb://type=Asset&id=117149073945265&w=150&h=150"
+toggleBtn.Draggable = true
+toggleBtn.Active = true
+toggleBtn.ZIndex = 1000
+Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(0.5, 0)
+
+local btnStroke = Instance.new("UIStroke", toggleBtn)
+btnStroke.Thickness = 2
+btnStroke.Color = Theme.Accent
+
+local dragStartPos = nil
+local dragging = false
+
+toggleBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragStartPos = input.Position
+        dragging = false
+    end
+end)
+
+toggleBtn.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        if dragStartPos then
+            local delta = (input.Position - dragStartPos).Magnitude
+            if delta > 10 then dragging = true end
+        end
+    end
+end)
+
+toggleBtn.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        if not dragging then
+            Main.Visible = not Main.Visible
+        end
+        dragStartPos = nil
+        dragging = false
+    end
+end)
+
+local BgImage = Instance.new("ImageLabel", Main)
+BgImage.Size = UDim2.new(1, 0, 1, 0)
+BgImage.BackgroundTransparency = 1
+BgImage.Image = "rbxassetid://10734950059"
+BgImage.ImageColor3 = Color3.fromRGB(50, 40, 10)
+BgImage.ImageTransparency = 0.85
+BgImage.ScaleType = Enum.ScaleType.Crop
+
+local TopBar = Instance.new("Frame", Main)
+TopBar.Size = UDim2.new(1, 0, 0, 50)
+TopBar.BackgroundColor3 = Theme.Surface
+TopBar.BorderSizePixel = 0
+TopBar.ZIndex = 10
+
+local Logo = Instance.new("ImageLabel", TopBar)
+Logo.Size = UDim2.new(0, 36, 0, 36)
+Logo.Position = UDim2.new(0, 10, 0.5, -18)
+Logo.BackgroundTransparency = 1
+Logo.Image = "rbxthumb://type=Asset&id=117149073945265&w=150&h=150"
+Logo.ScaleType = Enum.ScaleType.Fit
+Logo.ZIndex = 11
+Instance.new("UICorner", Logo).CornerRadius = UDim.new(0.2, 0)
+
+local Title = Instance.new("TextLabel", TopBar) 
+Title.Size = UDim2.new(0, 160, 0, 22) 
+Title.Position = UDim2.new(0, 52, 0, 5) 
+Title.BackgroundTransparency = 1 
+Title.Text = "FARTEZ HUB" 
+Title.TextColor3 = Theme.Text 
+Title.TextSize = 18 
+Title.Font = Enum.Font.GothamBold 
+Title.TextXAlignment = Enum.TextXAlignment.Left 
+Title.ZIndex = 11 
+
+local Subtitle = Instance.new("TextLabel", TopBar) 
+Subtitle.Size = UDim2.new(0, 160, 0, 16) 
+Subtitle.Position = UDim2.new(0, 52, 0, 26) 
+Subtitle.BackgroundTransparency = 1 
+Subtitle.Text = "ไก่ชนพม่า" 
+Subtitle.TextColor3 = Theme.Accent 
+Subtitle.TextSize = 10 
+Subtitle.Font = Enum.Font.GothamSemibold 
+Subtitle.TextXAlignment = Enum.TextXAlignment.Left 
+Subtitle.ZIndex = 11 
+
+local TabContainer = Instance.new("Frame", Main)
+TabContainer.Size = UDim2.new(1, -16, 0, 36)
+TabContainer.Position = UDim2.new(0, 8, 0, 56)
+TabContainer.BackgroundColor3 = Theme.Surface
+Instance.new("UICorner", TabContainer).CornerRadius = UDim.new(0, 8)
+
+local TabLayout = Instance.new("UIListLayout", TabContainer)
+TabLayout.FillDirection = Enum.FillDirection.Horizontal
+TabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+TabLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+TabLayout.Padding = UDim.new(0, 2)
+
+local Content = Instance.new("Frame", Main)
+Content.Size = UDim2.new(1, -16, 1, -110)
+Content.Position = UDim2.new(0, 8, 0, 98)
+Content.BackgroundColor3 = Theme.Surface
+Content.ClipsDescendants = true
+Instance.new("UICorner", Content).CornerRadius = UDim.new(0, 10)
+
+local Tabs = {}
+local function CreateTab(name)
+    local Btn = Instance.new("TextButton", TabContainer)
+    Btn.Size = UDim2.new(0, 52, 0, 28) 
+    Btn.BackgroundColor3 = Theme.SurfaceLight
+    Btn.Text = name
+    Btn.TextColor3 = Theme.TextDim
+    Btn.TextSize = 8.5 
+    Btn.Font = Enum.Font.GothamBold
+    Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 6)
+
+    local Page = Instance.new("ScrollingFrame", Content)
+    Page.Name = name .. "Page"
+    Page.Size = UDim2.new(1, 0, 1, 0)
+    Page.BackgroundTransparency = 1
+    Page.ScrollBarThickness = 2
+    Page.ScrollBarImageColor3 = Theme.Accent
+    Page.Visible = false
+
+    local PL = Instance.new("UIListLayout", Page)
+    PL.Padding = UDim.new(0, 8)
+    PL.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    
+    local PP = Instance.new("UIPadding", Page)
+    PP.PaddingTop = UDim.new(0, 10)
+    PP.PaddingBottom = UDim.new(0, 10)
+
+    table.insert(Tabs, {Btn = Btn, Page = Page})
+
+    Btn.Activated:Connect(function()
+        for _, t in pairs(Tabs) do
+            t.Page.Visible = false
+            TweenService:Create(t.Btn, TweenInfo.new(0.2), {BackgroundColor3 = Theme.SurfaceLight, TextColor3 = Theme.TextDim}):Play()
+        end
+        Page.Visible = true
+        TweenService:Create(Btn, TweenInfo.new(0.2), {BackgroundColor3 = Theme.Accent, TextColor3 = Color3.new(0,0,0)}):Play()
+    end)
+    return Page
+end
+
+local MainTab = CreateTab("หลัก")
+local CollectTab = CreateTab("เก็บไก่")
+local UpgradeTab = CreateTab("อัพเกรด")
+local CodeTab = CreateTab("โค้ด")
+local DetailsTab = CreateTab("ข้อมูล")
+
+-- ================= [ MAIN TAB ] ================= --
+local function InitMainUI(parentTab)
+    local ChaosFrame = Instance.new("Frame", parentTab)
+    ChaosFrame.Size = UDim2.new(0.9, 0, 0, 40)
+    ChaosFrame.BackgroundColor3 = Theme.SurfaceLight
+    Instance.new("UICorner", ChaosFrame).CornerRadius = UDim.new(0, 8)
+
+    local ChaosLabel = Instance.new("TextLabel", ChaosFrame)
+    ChaosLabel.Size = UDim2.new(0.65, 0, 1, 0)
+    ChaosLabel.Position = UDim2.new(0, 10, 0, 0)
+    ChaosLabel.BackgroundTransparency = 1
+    ChaosLabel.Text = "เอาไก่ไปตีอยู่พม่า"
+    ChaosLabel.TextColor3 = Theme.Text
+    ChaosLabel.TextSize = 11
+    ChaosLabel.Font = Enum.Font.GothamBold
+    ChaosLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+    local ChaosBtn = Instance.new("TextButton", ChaosFrame)
+    ChaosBtn.Size = UDim2.new(0, 60, 0, 24)
+    ChaosBtn.Position = UDim2.new(1, -70, 0.5, -12)
+    ChaosBtn.BackgroundColor3 = Theme.Danger
+    ChaosBtn.Text = "ปิด"
+    ChaosBtn.TextColor3 = Theme.Text
+    ChaosBtn.TextSize = 10
+    ChaosBtn.Font = Enum.Font.GothamBold
+    Instance.new("UICorner", ChaosBtn).CornerRadius = UDim.new(0, 6)
+
+    ChaosBtn.Activated:Connect(function()
+        Config.AutoChaos = not Config.AutoChaos
+        if Config.AutoChaos then
+            ChaosBtn.BackgroundColor3 = Theme.Accent
+            ChaosBtn.Text = "เปิด"
+            ChaosBtn.TextColor3 = Color3.new(0, 0, 0)
+        else
+            ChaosBtn.BackgroundColor3 = Theme.Danger
+            ChaosBtn.Text = "ปิด"
+            ChaosBtn.TextColor3 = Theme.Text
+            -- ส่งค่า coop ทันทีก่อนปิด
+            pcall(function()
+                ReplicatedStorage.Remotes.SetChickenOrder:FireServer("coop")
+            end)
+        end
+    end)
+
+    local TowerFrame = Instance.new("Frame", parentTab)
+    TowerFrame.Size = UDim2.new(0.9, 0, 0, 40)
+    TowerFrame.BackgroundColor3 = Theme.SurfaceLight
+    Instance.new("UICorner", TowerFrame).CornerRadius = UDim.new(0, 8)
+
+    local TowerLabel = Instance.new("TextLabel", TowerFrame)
+    TowerLabel.Size = UDim2.new(0.65, 0, 1, 0)
+    TowerLabel.Position = UDim2.new(0, 10, 0, 0)
+    TowerLabel.BackgroundTransparency = 1
+    TowerLabel.Text = "เอาไก่ไปตีหอควย"
+    TowerLabel.TextColor3 = Theme.Text
+    TowerLabel.TextSize = 11
+    TowerLabel.Font = Enum.Font.GothamBold
+    TowerLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+    local TowerBtn = Instance.new("TextButton", TowerFrame)
+    TowerBtn.Size = UDim2.new(0, 60, 0, 24)
+    TowerBtn.Position = UDim2.new(1, -70, 0.5, -12)
+    TowerBtn.BackgroundColor3 = Theme.Danger
+    TowerBtn.Text = "ปิด"
+    TowerBtn.TextColor3 = Theme.Text
+    TowerBtn.TextSize = 10
+    TowerBtn.Font = Enum.Font.GothamBold
+    Instance.new("UICorner", TowerBtn).CornerRadius = UDim.new(0, 6)
+
+    TowerBtn.Activated:Connect(function()
+        Config.AutoTower = not Config.AutoTower
+        if Config.AutoTower then
+            TowerBtn.BackgroundColor3 = Theme.Accent
+            TowerBtn.Text = "เปิด"
+            TowerBtn.TextColor3 = Color3.new(0, 0, 0)
+        else
+            TowerBtn.BackgroundColor3 = Theme.Danger
+            TowerBtn.Text = "ปิด"
+            TowerBtn.TextColor3 = Theme.Text
+        end
+    end)
+end
+
+InitMainUI(MainTab)
+
+-- ================= [ COLLECT TAB ] ================= --
+local StatusLabel = nil
+
+local function InitCollectUI(parentTab)
+    local StatusFrame = Instance.new("Frame", parentTab)
+    StatusFrame.Size = UDim2.new(0.9, 0, 0, 30)
+    StatusFrame.BackgroundColor3 = Theme.SurfaceLight
+    Instance.new("UICorner", StatusFrame).CornerRadius = UDim.new(0, 6)
+
+    StatusLabel = Instance.new("TextLabel", StatusFrame)
+    StatusLabel.Size = UDim2.new(1, -16, 1, 0)
+    StatusLabel.Position = UDim2.new(0, 8, 0, 0)
+    StatusLabel.BackgroundTransparency = 1
+    StatusLabel.Text = "ยังบ่ทันได้ไปเก็บ"
+    StatusLabel.TextColor3 = Theme.Gold
+    StatusLabel.TextSize = 10
+    StatusLabel.Font = Enum.Font.GothamSemibold
+    StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+    local ScrapFrame = Instance.new("Frame", parentTab)
+    ScrapFrame.Size = UDim2.new(0.9, 0, 0, 40)
+    ScrapFrame.BackgroundColor3 = Theme.SurfaceLight
+    Instance.new("UICorner", ScrapFrame).CornerRadius = UDim.new(0, 8)
+
+    local ScrapLabel = Instance.new("TextLabel", ScrapFrame)
+    ScrapLabel.Size = UDim2.new(0.65, 0, 1, 0)
+    ScrapLabel.Position = UDim2.new(0, 10, 0, 0)
+    ScrapLabel.BackgroundTransparency = 1
+    ScrapLabel.Text = "เก็บขยะไปขาย"
+    ScrapLabel.TextColor3 = Theme.Text
+    ScrapLabel.TextSize = 11
+    ScrapLabel.Font = Enum.Font.GothamBold
+    ScrapLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+    local ScrapBtn = Instance.new("TextButton", ScrapFrame)
+    ScrapBtn.Size = UDim2.new(0, 60, 0, 24)
+    ScrapBtn.Position = UDim2.new(1, -70, 0.5, -12)
+    ScrapBtn.BackgroundColor3 = Theme.Danger
+    ScrapBtn.Text = "OFF"
+    ScrapBtn.TextColor3 = Theme.Text
+    ScrapBtn.TextSize = 10
+    ScrapBtn.Font = Enum.Font.GothamBold
+    Instance.new("UICorner", ScrapBtn).CornerRadius = UDim.new(0, 6)
+
+    local AmountFrame = Instance.new("Frame", parentTab)
+    AmountFrame.Size = UDim2.new(0.9, 0, 0, 40)
+    AmountFrame.BackgroundColor3 = Theme.SurfaceLight
+    Instance.new("UICorner", AmountFrame).CornerRadius = UDim.new(0, 8)
+
+    local AmountLabel = Instance.new("TextLabel", AmountFrame)
+    AmountLabel.Size = UDim2.new(0.6, 0, 1, 0)
+    AmountLabel.Position = UDim2.new(0, 10, 0, 0)
+    AmountLabel.BackgroundTransparency = 1
+    AmountLabel.Text = "จำนวนขยะ สูงสุด20อัน"
+    AmountLabel.TextColor3 = Theme.Text
+    AmountLabel.TextSize = 11
+    AmountLabel.Font = Enum.Font.GothamBold
+    AmountLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+    local AmountInput = Instance.new("TextBox", AmountFrame)
+    AmountInput.Size = UDim2.new(0, 60, 0, 24)
+    AmountInput.Position = UDim2.new(1, -70, 0.5, -12)
+    AmountInput.BackgroundColor3 = Theme.Surface
+    AmountInput.Text = tostring(Config.CollectAmount)
+    AmountInput.TextColor3 = Theme.Accent
+    AmountInput.TextSize = 11
+    AmountInput.Font = Enum.Font.GothamBold
+    Instance.new("UICorner", AmountInput).CornerRadius = UDim.new(0, 6)
+
+    AmountInput:GetPropertyChangedSignal("Text"):Connect(function()
+        local val = tonumber(AmountInput.Text)
+        if val then
+            Config.CollectAmount = math.clamp(math.floor(val), 1, 20)
+        end
+    end)
+
+    local EggFrame = Instance.new("Frame", parentTab)
+    EggFrame.Size = UDim2.new(0.9, 0, 0, 40)
+    EggFrame.BackgroundColor3 = Theme.SurfaceLight
+    Instance.new("UICorner", EggFrame).CornerRadius = UDim.new(0, 8)
+
+    local EggLabel = Instance.new("TextLabel", EggFrame)
+    EggLabel.Size = UDim2.new(0.65, 0, 1, 0)
+    EggLabel.Position = UDim2.new(0, 10, 0, 0)
+    EggLabel.BackgroundTransparency = 1
+    EggLabel.Text = "เก็บไข่ฮางรัง"
+    EggLabel.TextColor3 = Theme.Text
+    EggLabel.TextSize = 11
+    EggLabel.Font = Enum.Font.GothamBold
+    EggLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+    local EggBtn = Instance.new("TextButton", EggFrame)
+    EggBtn.Size = UDim2.new(0, 60, 0, 24)
+    EggBtn.Position = UDim2.new(1, -70, 0.5, -12)
+    EggBtn.BackgroundColor3 = Theme.Danger
+    EggBtn.Text = "ปิด"
+    EggBtn.TextColor3 = Theme.Text
+    EggBtn.TextSize = 10
+    EggBtn.Font = Enum.Font.GothamBold
+    Instance.new("UICorner", EggBtn).CornerRadius = UDim.new(0, 6)
+
+    local IncFrame = Instance.new("Frame", parentTab)
+    IncFrame.Size = UDim2.new(0.9, 0, 0, 40)
+    IncFrame.BackgroundColor3 = Theme.SurfaceLight
+    Instance.new("UICorner", IncFrame).CornerRadius = UDim.new(0, 8)
+
+    local IncLabel = Instance.new("TextLabel", IncFrame)
+    IncLabel.Size = UDim2.new(0.65, 0, 1, 0)
+    IncLabel.Position = UDim2.new(0, 10, 0, 0)
+    IncLabel.BackgroundTransparency = 1
+    IncLabel.Text = "เก็บไข่สดๆจากตู้"
+    IncLabel.TextColor3 = Theme.Text
+    IncLabel.TextSize = 11
+    IncLabel.Font = Enum.Font.GothamBold
+    IncLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+    local IncBtn = Instance.new("TextButton", IncFrame)
+    IncBtn.Size = UDim2.new(0, 60, 0, 24)
+    IncBtn.Position = UDim2.new(1, -70, 0.5, -12)
+    IncBtn.BackgroundColor3 = Theme.Danger
+    IncBtn.Text = "ปิด"
+    IncBtn.TextColor3 = Theme.Text
+    IncBtn.TextSize = 10
+    IncBtn.Font = Enum.Font.GothamBold
+    Instance.new("UICorner", IncBtn).CornerRadius = UDim.new(0, 6)
+
+    ScrapBtn.Activated:Connect(function()
+        Config.AutoCollectScrap = not Config.AutoCollectScrap
+        if Config.AutoCollectScrap then
+            if Config.SavedHomePos == nil then
+                local char = player.Character
+                local root = char and char:FindFirstChild("HumanoidRootPart")
+                if root then Config.SavedHomePos = root.Position end
+            end
+            ScrapBtn.BackgroundColor3 = Theme.Accent
+            ScrapBtn.Text = "เปิด"
+            ScrapBtn.TextColor3 = Color3.new(0, 0, 0)
+        else
+            ScrapBtn.BackgroundColor3 = Theme.Danger
+            ScrapBtn.Text = "ปิด"
+            ScrapBtn.TextColor3 = Theme.Text
+        end
+    end)
+
+    EggBtn.Activated:Connect(function()
+        Config.AutoCollectEggs = not Config.AutoCollectEggs
+        if Config.AutoCollectEggs then
+            if Config.SavedHomePos == nil then
+                local char = player.Character
+                local root = char and char:FindFirstChild("HumanoidRootPart")
+                if root then Config.SavedHomePos = root.Position end
+            end
+            EggBtn.BackgroundColor3 = Theme.Accent
+            EggBtn.Text = "เปิด"
+            EggBtn.TextColor3 = Color3.new(0, 0, 0)
+        else
+            EggBtn.BackgroundColor3 = Theme.Danger
+            EggBtn.Text = "ปิด"
+            EggBtn.TextColor3 = Theme.Text
+        end
+    end)
+
+    IncBtn.Activated:Connect(function()
+        Config.AutoIncubatorClaim = not Config.AutoIncubatorClaim
+        if Config.AutoIncubatorClaim then
+            IncBtn.BackgroundColor3 = Theme.Accent
+            IncBtn.Text = "เปิด"
+            IncBtn.TextColor3 = Color3.new(0, 0, 0)
+        else
+            IncBtn.BackgroundColor3 = Theme.Danger
+            IncBtn.Text = "ปิด"
+            IncBtn.TextColor3 = Theme.Text
+        end
+    end)
+end
+
+InitCollectUI(CollectTab)
+
+-- ================= [ UPGRADE TAB ] ================= --
+local Remotes = ReplicatedStorage:WaitForChild("Remotes", 5)
+
+local function CreateUpgradeToggle(parent, text, configKey)
+    local Frame = Instance.new("Frame", parent)
+    Frame.Size = UDim2.new(0.9, 0, 0, 40)
+    Frame.BackgroundColor3 = Theme.SurfaceLight
+    Instance.new("UICorner", Frame).CornerRadius = UDim.new(0, 8)
+
+    local Label = Instance.new("TextLabel", Frame)
+    Label.Size = UDim2.new(0, 160, 1, 0)
+    Label.Position = UDim2.new(0, 10, 0, 0)
+    Label.BackgroundTransparency = 1
+    Label.Text = text
+    Label.TextColor3 = Theme.Text
+    Label.TextSize = 10
+    Label.Font = Enum.Font.GothamBold
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+
+    local Btn = Instance.new("TextButton", Frame)
+    Btn.Size = UDim2.new(0, 60, 0, 24)
+    Btn.Position = UDim2.new(1, -70, 0.5, -12)
+    Btn.BackgroundColor3 = Theme.Danger
+    Btn.Text = "OFF"
+    Btn.TextColor3 = Theme.Text
+    Btn.TextSize = 10
+    Btn.Font = Enum.Font.GothamBold
+    Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 6)
+
+    Btn.Activated:Connect(function()
+        Config[configKey] = not Config[configKey]
+        if Config[configKey] then
+            Btn.BackgroundColor3 = Theme.Accent
+            Btn.Text = "ON"
+            Btn.TextColor3 = Color3.new(0, 0, 0)
+        else
+            Btn.BackgroundColor3 = Theme.Danger
+            Btn.Text = "OFF"
+            Btn.TextColor3 = Theme.Text
+        end
+    end)
+end
+
+CreateUpgradeToggle(UpgradeTab, "เกิดใหม่", "AutoRebirth")
+CreateUpgradeToggle(UpgradeTab, "อัพเครื่องทิ่มขยะ", "AutoUpgradeRecycler")
+CreateUpgradeToggle(UpgradeTab, "ซื้อแนวใส่อาหารไก่  6อัน", "AutoBuyFeeder")
+CreateUpgradeToggle(UpgradeTab, "อัพแนวใส่อาหารไก่ 6อัน", "AutoUpgradeFeeder")
+CreateUpgradeToggle(UpgradeTab, "ซื้อคอกไก่", "AutoBuyCoop")
+
+task.spawn(function()
+    while true do
+        task.wait(0.05)
+        if Remotes then
+            if Config.AutoBuyFeeder and Remotes:FindFirstChild("BuyGenerator") then
+                for feederIndex = 1, 6 do
+                    if not Config.AutoBuyFeeder then break end
+                    pcall(function() Remotes.BuyGenerator:InvokeServer(feederIndex) end)
+                    task.wait(0.03)
+                end
+            end
+            if Config.AutoUpgradeFeeder and Remotes:FindFirstChild("UpgradeGenerator") then
+                for feederIndex = 1, 6 do
+                    if not Config.AutoUpgradeFeeder then break end
+                    pcall(function() Remotes.UpgradeGenerator:InvokeServer(feederIndex) end)
+                    task.wait(0.03)
+                end
+            end
+        end
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        if Remotes then
+            if Config.AutoRebirth and Remotes:FindFirstChild("Rebirth") then
+                pcall(function() Remotes.Rebirth:InvokeServer() end)
+            end
+            if Config.AutoUpgradeRecycler and Remotes:FindFirstChild("UpgradeRecycler") then
+                pcall(function() Remotes.UpgradeRecycler:InvokeServer() end)
+            end
+            if Config.AutoBuyCoop and Remotes:FindFirstChild("ExpandCoop") then
+                pcall(function() Remotes.ExpandCoop:InvokeServer() end)
+            end
+            if Config.AutoUpgradeCoop and Remotes:FindFirstChild("ExpandCoop") then
+                pcall(function() Remotes.ExpandCoop:InvokeServer() end)
+            end
+        end
+    end
+end)
+
+-- ================= [ CODE TAB ] ================= --
+local function InitCodeUI(parentTab)
+    local codeList = {"BATTLEREADY", "50MVISITS", "ASCEND", "EGGSCELLENT", "LETMECOOK", "SERGIOVERSE", "WELCOME"}
+
+    local RedeemAllFrame = Instance.new("Frame", parentTab)
+    RedeemAllFrame.Size = UDim2.new(0.9, 0, 0, 45)
+    RedeemAllFrame.BackgroundColor3 = Theme.SurfaceLight
+    Instance.new("UICorner", RedeemAllFrame).CornerRadius = UDim.new(0, 8)
+
+    local RedeemAllBtn = Instance.new("TextButton", RedeemAllFrame)
+    RedeemAllBtn.Size = UDim2.new(1, 0, 1, 0)
+    RedeemAllBtn.BackgroundTransparency = 1
+    RedeemAllBtn.Text = "🎁 ใส่โค้ดเด้อ"
+    RedeemAllBtn.TextColor3 = Theme.Accent
+    RedeemAllBtn.TextSize = 12
+    RedeemAllBtn.Font = Enum.Font.GothamBold
+
+    RedeemAllBtn.Activated:Connect(function()
+        task.spawn(function()
+            if Remotes and Remotes:FindFirstChild("RedeemCode") then
+                for _, code in ipairs(codeList) do
+                    pcall(function()
+                        Remotes.RedeemCode:InvokeServer(code)
+                    end)
+                    task.wait(0.6)
+                end
+                if StatusLabel then StatusLabel.Text = "Status: [Code] กรอกโค้ดเสร็จแล้ว!" end
+            end
+        end)
+    end)
+end
+
+InitCodeUI(CodeTab)
+
+-- ================= [ DETAILS TAB ] ================= --
+local CreditsText = Instance.new("TextLabel", DetailsTab) 
+CreditsText.Size = UDim2.new(1, 0, 0, 25) 
+CreditsText.BackgroundTransparency = 1 
+CreditsText.Text = "ไก่ชนพม่า" 
+CreditsText.TextColor3 = Theme.Success 
+CreditsText.TextSize = 14 
+CreditsText.Font = Enum.Font.GothamBold 
+
+local DevText = Instance.new("TextLabel", DetailsTab) 
+DevText.Size = UDim2.new(1, 0, 0, 20) 
+DevText.BackgroundTransparency = 1 
+DevText.Text = "🌿 by FARTEZ " 
+DevText.TextColor3 = Theme.Success 
+DevText.TextSize = 12
+DevText.Font = Enum.Font.GothamSemibold 
+
+Tabs[1].Page.Visible = true
+Tabs[1].Btn.BackgroundColor3 = Theme.Accent
+Tabs[1].Btn.TextColor3 = Color3.new(0,0,0)
+
+-- ================= [ 3. BACKGROUND TASKS (GLOBAL ENCOURAGE SCANNER) ] ================= --
+task.spawn(function()
+    local lastEncourageTime = 0
+    local afkTimer = 0
+
+    while true do
+        task.wait(0.5)
+        afkTimer = afkTimer + 1
+
+        -- Anti-AFK ขยับกล้องทุก 19 นาที
+        if afkTimer >= 1140 then
+            pcall(function()
+                local cam = Workspace.CurrentCamera
+                if cam then
+                    cam.CFrame = cam.CFrame * CFrame.Angles(0, math.rad(2), 0)
+                end
+            end)
+            afkTimer = 0
+        end
+
+        -- Auto TO CHAOS & GLOBAL ENCOURAGE SCANNER
+        if Config.AutoChaos and Remotes then
+            pcall(function()
+                local playerGui = player:FindFirstChild("PlayerGui")
+                local hasRetreat = false
+
+                if playerGui then
+                    for _, gui in ipairs(playerGui:GetDescendants()) do
+                        if (gui:IsA("TextLabel") or gui:IsA("TextButton")) and string.find(string.upper(gui.Text), "RETREAT") and gui.Visible then
+                            hasRetreat = true
+                            break
+                        end
+                    end
+                end
+
+                if not hasRetreat then
+                    Remotes.SetChickenOrder:FireServer("chaos")
+
+                    -- ค้นหาปุ่ม Encourage หรือคำว่า encourage ทั่ว PlayerGui ทันทีที่ปรากฏ
+                    local foundEncourage = false
+                    if playerGui then
+                        for _, gui in ipairs(playerGui:GetDescendants()) do
+                            if (gui:IsA("TextButton") or gui:IsA("ImageButton") or gui:IsA("Frame")) and (string.find(string.lower(gui.Name), "encourage") or (gui:IsA("TextButton") and string.find(string.upper(gui.Text), "ENCOURAGE"))) and gui.Visible then
+                                foundEncourage = true
+                                break
+                            end
+                        end
+                    end
+
+                    if foundEncourage then
+                        if tick() - lastEncourageTime >= 15 then
+                            Remotes.EncourageChicken:InvokeServer()
+                            lastEncourageTime = tick()
+                        end
+                    end
+                end
+            end)
+        end
+
+        -- Auto Start Tower
+        if Config.AutoTower and Remotes and Remotes:FindFirstChild("TowerStart") then
+            pcall(function()
+                Remotes.TowerStart:InvokeServer()
+            end)
+            task.wait(5)
+        end
+    end
+end)
+
+-- ================= [ 4. CORE LOGIC (WALKTO & TOUCH) ] ================= --
+local function WalkTo(targetPos, stopDistance)
+    local char = player.Character
+    if not char then return false end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not hum or not root then return false end
+
+    local stopDist = stopDistance or 1.0
+    hum:MoveTo(targetPos)
+
+    local reached = false
+    local connection
+    connection = hum.MoveToFinished:Connect(function()
+        reached = true
+    end)
+
+    local startTime = tick()
+    while not reached and (Config.AutoCollectScrap or Config.AutoCollectEggs) do
+        task.wait(0.05)
+        char = player.Character
+        root = char and char:FindFirstChild("HumanoidRootPart")
+        if not root then break end
+        
+        local currentDist = (root.Position - targetPos).Magnitude
+        if currentDist <= stopDist then
+            reached = true
+            break
+        end
+
+        if tick() - startTime > 2.5 then
+            hum:MoveTo(targetPos)
+            startTime = tick()
+        end
+    end
+
+    if connection then connection:Disconnect() end
+    return reached
+end
+
+local function TouchTarget(targetPart)
+    if not targetPart or not targetPart.Parent then return false end
+    local char = player.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+
+    if root and typeof(firetouchinterest) == "function" then
+        pcall(function()
+            firetouchinterest(root, targetPart, 0)
+            task.wait(0.05)
+            firetouchinterest(root, targetPart, 1)
+            task.wait(0.05)
+            firetouchinterest(root, targetPart, 0)
+        end)
+    end
+end
+
+-- ================= [ SYSTEM A: AUTO COLLECT SCRAP ] ================= --
+task.spawn(function()
+    while true do
+        task.wait(0.2)
+        if Config.AutoCollectScrap then
+            local collectedCount = 0
+            local targetMax = math.clamp(math.floor(Config.CollectAmount), 1, 20)
+            
+            if StatusLabel then 
+                StatusLabel.Text = "Status: [Scrap] เป้าหมาย " .. targetMax .. " ชิ้น" 
+            end
+
+            local ignoredParts = {}
+
+            while Config.AutoCollectScrap and collectedCount < targetMax do
+                local pitScrap = Workspace:FindFirstChild("PitScrap", true)
+                local char = player.Character
+                local root = char and char:FindFirstChild("HumanoidRootPart")
+                
+                local closestPart = nil
+                local minDist = math.huge
+
+                if pitScrap and root then
+                    for _, v in ipairs(pitScrap:GetDescendants()) do
+                        if v:IsA("BasePart") and v.Name ~= "Terrain" and not ignoredParts[v] and not v:IsDescendantOf(char) then
+                            local d = (v.Position - root.Position).Magnitude
+                            if d < minDist then
+                                minDist = d
+                                closestPart = v
+                            end
+                        end
+                    end
+                end
+
+                if closestPart and closestPart.Parent then
+                    if StatusLabel then StatusLabel.Text = "Status: [Scrap] เก็บ (" .. (collectedCount + 1) .. "/" .. targetMax .. ")" end
+                    local reached = WalkTo(closestPart.Position, 1.8)
+                    if reached and Config.AutoCollectScrap then
+                        TouchTarget(closestPart)
+                        ignoredParts[closestPart] = true
+                        collectedCount = collectedCount + 1
+                        task.wait(0.1)
+                    else
+                        ignoredParts[closestPart] = true
+                    end
+                else
+                    break
+                end
+                task.wait(0.05)
+            end
+
+            if Config.AutoCollectScrap and collectedCount > 0 and Config.SavedHomePos then
+                if StatusLabel then StatusLabel.Text = "Status: [Scrap] เดินกลับบ้าน..." end
+                WalkTo(Config.SavedHomePos, 2.5)
+                task.wait(1)
+            end
+        end
+    end
+end)
+
+-- ================= [ SYSTEM B: AUTO COLLECT NESTEGGS ] ================= --
+task.spawn(function()
+    while true do
+        task.wait(0.3)
+        if Config.AutoCollectEggs then
+            if Config.SavedHomePos == nil then
+                local char = player.Character
+                local root = char and char:FindFirstChild("HumanoidRootPart")
+                if root then Config.SavedHomePos = root.Position end
+            end
+
+            local nestFolder = Workspace:FindFirstChild("NestEggs", true) 
+                or Workspace:FindFirstChild("Eggs", true) 
+                or Workspace:FindFirstChild("Nests", true)
+
+            if not nestFolder then
+                for _, obj in ipairs(Workspace:GetChildren()) do
+                    if obj:IsA("Folder") and (string.find(string.lower(obj.Name), "egg") or string.find(string.lower(obj.Name), "nest")) then
+                        nestFolder = obj
+                        break
+                    end
+                end
+            end
+
+            if nestFolder and Config.SavedHomePos then
+                local closestEggPart = nil
+                local minDistance = math.huge
+
+                for _, v in ipairs(nestFolder:GetDescendants()) do
+                    if v:IsA("BasePart") and v.Name ~= "Terrain" and v.Transparency < 1 then
+                        local distFromHome = (v.Position - Config.SavedHomePos).Magnitude
+                        if distFromHome <= Config.HomeZoneRadius then
+                            local char = player.Character
+                            local root = char and char:FindFirstChild("HumanoidRootPart")
+                            local distToChar = root and (v.Position - root.Position).Magnitude or math.huge
+                            
+                            if distToChar < minDistance then
+                                minDistance = distToChar
+                                closestEggPart = v
+                            end
+                        end
+                    end
+                end
+
+                if closestEggPart and closestEggPart.Parent then
+                    if StatusLabel then StatusLabel.Text = "ถ่าเก็บไข่" end
+                    local reached = WalkTo(closestEggPart.Position, 1.0)
+                    if reached and Config.AutoCollectEggs then
+                        TouchTarget(closestEggPart)
+                        task.wait(0.2)
+                    end
+                else
+                    if StatusLabel then StatusLabel.Text = "Status: [Eggs] รอไข่เกิดในเขตบ้าน (30 Studs)..." end
+                end
+            else
+                if StatusLabel then StatusLabel.Text = "Status: [Eggs] ไม่พบโฟลเดอร์ไข่ในเกม!" end
+            end
+        end
+    end
+end)
+
+-- ================= [ SYSTEM C: AUTO COLLECT INCUBATOR ] ================= --
+task.spawn(function()
+    while true do
+        task.wait(1)
+        if Config.AutoIncubatorClaim then
+            pcall(function()
+                local cell1 = player.PlayerGui
+                    and player.PlayerGui:FindFirstChild("Incubator")
+                    and player.PlayerGui.Incubator:FindFirstChild("Incubator")
+                    and player.PlayerGui.Incubator.Incubator:FindFirstChild("CollectedEggsHolder")
+                    and player.PlayerGui.Incubator.Incubator.CollectedEggsHolder:FindFirstChild("ScrollingFrame")
+                    and player.PlayerGui.Incubator.Incubator.CollectedEggsHolder.ScrollingFrame:FindFirstChild("cell1")
+
+                if cell1 and cell1.Visible then
+                    if StatusLabel then StatusLabel.Text = "Status: [Incubator] กำลังรับไข่จากตู้ฟัก..." end
+                    ReplicatedStorage.Remotes.IncubatorClaim:InvokeServer()
+                    task.wait(1.5)
+                end
+            end)
+        end
+    end
+end)
