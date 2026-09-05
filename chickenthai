@@ -539,11 +539,11 @@ local function CreateUpgradeToggle(parent, text, configKey)
     end)
 end
 
-CreateUpgradeToggle(UpgradeTab, "เกิดใหม่", "AutoRebirth")
 CreateUpgradeToggle(UpgradeTab, "อัพเครื่องทิ่มขยะ", "AutoUpgradeRecycler")
 CreateUpgradeToggle(UpgradeTab, "ซื้อแนวใส่อาหารไก่  6อัน", "AutoBuyFeeder")
 CreateUpgradeToggle(UpgradeTab, "อัพแนวใส่อาหารไก่ 6อัน", "AutoUpgradeFeeder")
 CreateUpgradeToggle(UpgradeTab, "ซื้อคอกไก่", "AutoBuyCoop")
+CreateUpgradeToggle(UpgradeTab, "เกิดใหม่", "AutoRebirth")
 
 task.spawn(function()
     while true do
@@ -553,7 +553,7 @@ task.spawn(function()
                 for feederIndex = 1, 6 do
                     if not Config.AutoBuyFeeder then break end
                     pcall(function() Remotes.BuyGenerator:InvokeServer(feederIndex) end)
-                    task.wait(0.03)
+                    task.wait(0.3)
                 end
             end
             if Config.AutoUpgradeFeeder and Remotes:FindFirstChild("UpgradeGenerator") then
