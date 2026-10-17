@@ -14,7 +14,6 @@ if SafeParent:FindFirstChild("ISAN_BAN_HAO_HUB") then
 end
 
 -- [[ TOGGLE & SELECTION STATES ]] --
-_G.AutoFarmCoins = false
 _G.AutoLuckRoll = false
 _G.AutoSellPets = false
 
@@ -32,7 +31,7 @@ local Theme = {
     SurfaceLight = Color3.fromRGB(25, 25, 35),
     Accent = Color3.fromRGB(4, 203, 41), -- สีเขียว #04cb29
     Text = Color3.fromRGB(255, 255, 255),
-    TextDim = Color3.fromRGB(150, 150, 150),
+    TextDim = Color3.fromRGB(180, 180, 180),
     Gold = Color3.fromRGB(255, 215, 0),      
     Success = Color3.fromRGB(4, 203, 41)     
 }
@@ -59,8 +58,8 @@ btnStroke.Color = Theme.Accent
 
 -- [ หน้าต่างหลัก (Main Window) ]
 local Main = Instance.new("Frame", ScreenGui)
-Main.Size = UDim2.new(0, 290, 0, 360)
-Main.Position = UDim2.new(0.5, -145, 0.5, -180)
+Main.Size = UDim2.new(0, 290, 0, 380)
+Main.Position = UDim2.new(0.5, -145, 0.5, -190)
 Main.BackgroundColor3 = Theme.Background
 Main.BorderSizePixel = 0
 Main.ClipsDescendants = true
@@ -137,7 +136,7 @@ local Subtitle = Instance.new("TextLabel")
 Subtitle.Size = UDim2.new(0, 160, 0, 16) 
 Subtitle.Position = UDim2.new(0, 52, 0, 26) 
 Subtitle.BackgroundTransparency = 1 
-Subtitle.Text = "เกมตีดาบเด้อ" 
+Subtitle.Text = "เกมตีดากหรือดาบ" 
 Subtitle.TextColor3 = Theme.Accent 
 Subtitle.TextSize = 10 
 Subtitle.Font = Enum.Font.GothamSemibold 
@@ -205,6 +204,41 @@ local function CreateTab(name)
     return Page
 end
 
+-- [[ FUNCTION BUTTON CREATOR ]] --
+local function CreateButton(parent, text, callback)
+    local Frame = Instance.new("Frame", parent)
+    Frame.Size = UDim2.new(0.9, 0, 0, 40)
+    Frame.BackgroundColor3 = Theme.SurfaceLight
+    Instance.new("UICorner", Frame).CornerRadius = UDim.new(0, 8)
+
+    local Label = Instance.new("TextLabel", Frame)
+    Label.Size = UDim2.new(0.65, 0, 1, 0)
+    Label.Position = UDim2.new(0, 10, 0, 0)
+    Label.BackgroundTransparency = 1
+    Label.Text = text
+    Label.TextColor3 = Theme.Text
+    Label.TextSize = 12
+    Label.Font = Enum.Font.GothamBold
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+
+    local Button = Instance.new("TextButton", Frame)
+    Button.Size = UDim2.new(0, 55, 0, 24)
+    Button.Position = UDim2.new(1, -65, 0.5, -12)
+    Button.BackgroundColor3 = Theme.Accent
+    Button.Text = "RUN"
+    Button.TextColor3 = Color3.new(0,0,0)
+    Button.TextSize = 10
+    Button.Font = Enum.Font.GothamBold
+    Instance.new("UICorner", Button).CornerRadius = UDim.new(0, 6)
+
+    Button.MouseButton1Click:Connect(function()
+        TweenService:Create(Button, TweenInfo.new(0.1), {Size = UDim2.new(0, 50, 0, 22)}):Play()
+        task.wait(0.1)
+        TweenService:Create(Button, TweenInfo.new(0.1), {Size = UDim2.new(0, 55, 0, 24)}):Play()
+        task.spawn(callback)
+    end)
+end
+
 -- [[ FUNCTION TOGGLE CREATOR ]] --
 local function CreateToggle(parent, text, defaultState, callback)
     local Frame = Instance.new("Frame", parent)
@@ -244,7 +278,7 @@ local function CreateToggle(parent, text, defaultState, callback)
     end)
 end
 
--- [[ FUNCTION DROPDOWN CREATOR (เลือกได้หลายรายการ) ]] --
+-- [[ FUNCTION DROPDOWN CREATOR ]] --
 local function CreateMultiDropdown(parent, titleText, options)
     local Container = Instance.new("Frame", parent)
     Container.Size = UDim2.new(0.9, 0, 0, 40)
@@ -326,6 +360,40 @@ local function CreateMultiDropdown(parent, titleText, options)
     end
 end
 
+-- [[ FUNCTION INFO BOX CREATOR (สร้างกล่องข้อความคำแนะนำ) ]] --
+local function CreateInfoBox(parent, headerTitle, detailText)
+    local Frame = Instance.new("Frame", parent)
+    Frame.Size = UDim2.new(0.9, 0, 0, 115)
+    Frame.BackgroundColor3 = Theme.SurfaceLight
+    Instance.new("UICorner", Frame).CornerRadius = UDim.new(0, 8)
+
+    local Stroke = Instance.new("UIStroke", Frame)
+    Stroke.Thickness = 1
+    Stroke.Color = Theme.Accent
+
+    local Header = Instance.new("TextLabel", Frame)
+    Header.Size = UDim2.new(1, -20, 0, 22)
+    Header.Position = UDim2.new(0, 10, 0, 6)
+    Header.BackgroundTransparency = 1
+    Header.Text = "⚠️ " .. headerTitle
+    Header.TextColor3 = Theme.Accent
+    Header.TextSize = 12
+    Header.Font = Enum.Font.GothamBold
+    Header.TextXAlignment = Enum.TextXAlignment.Left
+
+    local Description = Instance.new("TextLabel", Frame)
+    Description.Size = UDim2.new(1, -20, 0, 80)
+    Description.Position = UDim2.new(0, 10, 0, 28)
+    Description.BackgroundTransparency = 1
+    Description.Text = detailText
+    Description.TextColor3 = Theme.TextDim
+    Description.TextSize = 10
+    Description.Font = Enum.Font.Gotham
+    Description.TextXAlignment = Enum.TextXAlignment.Left
+    Description.TextYAlignment = Enum.TextYAlignment.Top
+    Description.TextWrapped = true
+end
+
 -- สร้าง 3 แท็บหลัก
 local MainTab = CreateTab("Main")
 local SellTab = CreateTab("Sell")
@@ -359,9 +427,8 @@ local function ProcessAutoSell()
             if nameObj then
                 local petName = tostring(nameObj.Text or nameObj.Value or "")
                 
-                -- ตรวจสอบว่าชื่อ Pet ตรงกับรายการที่ถูกเลือกให้ขายหรือไม่
                 if _G.SellList[petName] then
-                    local uuid = item.Name -- ดึงค่า UUID ของ Pet
+                    local uuid = item.Name
                     print("กำลังขาย:", petName, "| UUID:", uuid)
                     deleteRE:FireServer(uuid)
                     task.wait(0.2)
@@ -374,46 +441,30 @@ end
 -- ================= [ ITEMS IN MAIN TAB ] ================= --
 
 -- 1. ฟังก์ชั่น ปั้มเหรียญ
-CreateToggle(MainTab, "ปั้มเหรียญ", false, function(Value)
-    _G.AutoFarmCoins = Value
-    if Value then
+CreateButton(MainTab, "ปั้มเหรียญ", function()
+    local DS = game:GetService("ReplicatedStorage").Remote.Dungeon_Server
+    DS.TryClaimDailyDunTicRE:FireServer()
+    task.wait(0.2)
+    local entered = DS.TryIntoDungeonRF:InvokeServer(true, 50)
+    print("entered:", tostring(entered))
+    task.wait(0.2)
+    local done = false
+    local rounds = 0
+    for _ = 1, 5 do
         task.spawn(function()
-            local remoteFolder = ReplicatedStorage:WaitForChild("Remote", 10)
-            local DS = remoteFolder and remoteFolder:WaitForChild("Dungeon_Server", 10)
-            
-            if not DS then return end
-
-            while _G.AutoFarmCoins do
-                pcall(function()
-                    DS.TryClaimDailyDunTicRE:FireServer()
-                    task.wait(0.2)
-                    local entered = DS.TryIntoDungeonRF:InvokeServer(true, 50)
-                    task.wait(0.2)
-                    
-                    local done = false
-                    local rounds = 0
-                    
-                    for _ = 1, 5 do
-                        task.spawn(function()
-                            while not done and _G.AutoFarmCoins do
-                                DS.StartRoundRE:FireServer(50)
-                                local result = DS.CompleteRoundRF:InvokeServer(50)
-                                if type(result) ~= "table" then
-                                    done = true
-                                    break
-                                end
-                                rounds += 1
-                                task.wait(0.1)
-                            end
-                        end)
-                    end
-                    
-                    repeat task.wait(0.5) until done or not _G.AutoFarmCoins
-                end)
-                task.wait(1)
+            while not done do
+                DS.StartRoundRE:FireServer(50)
+                local result = DS.CompleteRoundRF:InvokeServer(50)
+                if type(result) ~= "table" then
+                    done = true
+                    break
+                end
+                rounds += 1
             end
         end)
     end
+    repeat task.wait(1) until done
+    print("[*] done, rounds:", rounds)
 end)
 
 -- 2. ฟังก์ชั่น สุ่มตัวไว
@@ -436,6 +487,15 @@ CreateToggle(MainTab, "สุ่มตัวไว", false, function(Value)
         end)
     end
 end)
+
+-- 3. กล่องข้อความรายละเอียดฟังก์ชั่นปั้มเหรียญ (แสดงตรงพื้นที่ที่วงไว้)
+CreateInfoBox(
+    MainTab, 
+    "คำแนะนำฟังก์ชั่นปั้มเหรียญ", 
+    "• ต้องมีตั๋วลงหอคอยถึงจะทำได้\n" ..
+    "• ให้กดปุ่มทุกครั้งหลังออกจากหอคอย\n" ..
+    "• ถ้ากดปุ่มแล้วปั้มไม่ได้ ให้วิ่งไปที่หอคอยแล้วกดเข้าไป จากนั้นค่อยกดปุ่มปั้มเหรียญอีกครั้ง"
+)
 
 -- ================= [ ITEMS IN SELL TAB ] ================= --
 
