@@ -16,13 +16,11 @@ end
 -- [[ TOGGLE & SELECTION STATES ]] --
 _G.AutoLuckRoll = false
 _G.AutoSellPets = false
+_G.AutoSellEggs = false
 
--- ตารางเก็บรายชื่อสัตว์เลี้ยงที่เปิดใช้งานขายอยู่
-_G.SellList = {
-    ["Jack"] = false,
-    ["Hex"] = false,
-    ["Vampire: Drake"] = false
-}
+-- ตารางเก็บรายชื่อสัตว์เลี้ยงและไข่ที่เลือกขาย
+_G.SellList = {}
+_G.EggSellList = {}
 
 -- [[ THEME SETUP ]] --
 local Theme = {
@@ -136,7 +134,7 @@ local Subtitle = Instance.new("TextLabel")
 Subtitle.Size = UDim2.new(0, 160, 0, 16) 
 Subtitle.Position = UDim2.new(0, 52, 0, 26) 
 Subtitle.BackgroundTransparency = 1 
-Subtitle.Text = "เกมตีดากหรือดาบ" 
+Subtitle.Text = "เกมตีดาบเด้อ" 
 Subtitle.TextColor3 = Theme.Accent 
 Subtitle.TextSize = 10 
 Subtitle.Font = Enum.Font.GothamSemibold 
@@ -279,7 +277,7 @@ local function CreateToggle(parent, text, defaultState, callback)
 end
 
 -- [[ FUNCTION DROPDOWN CREATOR ]] --
-local function CreateMultiDropdown(parent, titleText, options)
+local function CreateDynamicDropdown(parent, titleText, targetTable)
     local Container = Instance.new("Frame", parent)
     Container.Size = UDim2.new(0.9, 0, 0, 40)
     Container.BackgroundColor3 = Theme.SurfaceLight
@@ -311,7 +309,7 @@ local function CreateMultiDropdown(parent, titleText, options)
     Arrow.Font = Enum.Font.GothamBold
 
     local OptionList = Instance.new("Frame", Container)
-    OptionList.Size = UDim2.new(1, 0, 0, #options * 30)
+    OptionList.Size = UDim2.new(1, 0, 0, 0)
     OptionList.Position = UDim2.new(0, 0, 0, 40)
     OptionList.BackgroundTransparency = 1
 
@@ -319,48 +317,69 @@ local function CreateMultiDropdown(parent, titleText, options)
     ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
     local isOpen = false
+    local currentOptionsCount = 0
+
     Header.MouseButton1Click:Connect(function()
         isOpen = not isOpen
         Arrow.Text = isOpen and "▲" or "▼"
-        local targetHeight = isOpen and (40 + #options * 30) or 40
+        local targetHeight = isOpen and (40 + currentOptionsCount * 30) or 40
         TweenService:Create(Container, TweenInfo.new(0.25), {Size = UDim2.new(0.9, 0, 0, targetHeight)}):Play()
     end)
 
-    for idx, optName in ipairs(options) do
-        local OptBtn = Instance.new("TextButton", OptionList)
-        OptBtn.Size = UDim2.new(1, 0, 0, 30)
-        OptBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
-        OptBtn.BorderSizePixel = 0
-        OptBtn.Text = ""
+    local function RefreshOptions(optionsList)
+        for _, child in ipairs(OptionList:GetChildren()) do
+            if child:IsA("TextButton") then child:Destroy() end
+        end
 
-        local OptLabel = Instance.new("TextLabel", OptBtn)
-        OptLabel.Size = UDim2.new(0.7, 0, 1, 0)
-        OptLabel.Position = UDim2.new(0, 20, 0, 0)
-        OptLabel.BackgroundTransparency = 1
-        OptLabel.Text = optName
-        OptLabel.TextColor3 = _G.SellList[optName] and Theme.Accent or Theme.TextDim
-        OptLabel.TextSize = 11
-        OptLabel.Font = Enum.Font.Gotham
-        OptLabel.TextXAlignment = Enum.TextXAlignment.Left
+        currentOptionsCount = #optionsList
+        OptionList.Size = UDim2.new(1, 0, 0, #optionsList * 30)
 
-        local StatusIcon = Instance.new("TextLabel", OptBtn)
-        StatusIcon.Size = UDim2.new(0, 30, 1, 0)
-        StatusIcon.Position = UDim2.new(1, -40, 0, 0)
-        StatusIcon.BackgroundTransparency = 1
-        StatusIcon.Text = _G.SellList[optName] and "✓" or ""
-        StatusIcon.TextColor3 = Theme.Accent
-        StatusIcon.TextSize = 12
-        StatusIcon.Font = Enum.Font.GothamBold
+        if isOpen then
+            Container.Size = UDim2.new(0.9, 0, 0, 40 + #optionsList * 30)
+        end
 
-        OptBtn.MouseButton1Click:Connect(function()
-            _G.SellList[optName] = not _G.SellList[optName]
-            StatusIcon.Text = _G.SellList[optName] and "✓" or ""
-            OptLabel.TextColor3 = _G.SellList[optName] and Theme.Accent or Theme.TextDim
-        end)
+        for _, optName in ipairs(optionsList) do
+            if targetTable[optName] == nil then
+                targetTable[optName] = false
+            end
+
+            local OptBtn = Instance.new("TextButton", OptionList)
+            OptBtn.Size = UDim2.new(1, 0, 0, 30)
+            OptBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
+            OptBtn.BorderSizePixel = 0
+            OptBtn.Text = ""
+
+            local OptLabel = Instance.new("TextLabel", OptBtn)
+            OptLabel.Size = UDim2.new(0.7, 0, 1, 0)
+            OptLabel.Position = UDim2.new(0, 20, 0, 0)
+            OptLabel.BackgroundTransparency = 1
+            OptLabel.Text = optName
+            OptLabel.TextColor3 = targetTable[optName] and Theme.Accent or Theme.TextDim
+            OptLabel.TextSize = 11
+            OptLabel.Font = Enum.Font.Gotham
+            OptLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+            local StatusIcon = Instance.new("TextLabel", OptBtn)
+            StatusIcon.Size = UDim2.new(0, 30, 1, 0)
+            StatusIcon.Position = UDim2.new(1, -40, 0, 0)
+            StatusIcon.BackgroundTransparency = 1
+            StatusIcon.Text = targetTable[optName] and "✓" or ""
+            StatusIcon.TextColor3 = Theme.Accent
+            StatusIcon.TextSize = 12
+            StatusIcon.Font = Enum.Font.GothamBold
+
+            OptBtn.MouseButton1Click:Connect(function()
+                targetTable[optName] = not targetTable[optName]
+                StatusIcon.Text = targetTable[optName] and "✓" or ""
+                OptLabel.TextColor3 = targetTable[optName] and Theme.Accent or Theme.TextDim
+            end)
+        end
     end
+
+    return RefreshOptions
 end
 
--- [[ FUNCTION INFO BOX CREATOR (สร้างกล่องข้อความคำแนะนำ) ]] --
+-- [[ FUNCTION INFO BOX CREATOR ]] --
 local function CreateInfoBox(parent, headerTitle, detailText)
     local Frame = Instance.new("Frame", parent)
     Frame.Size = UDim2.new(0.9, 0, 0, 115)
@@ -399,21 +418,80 @@ local MainTab = CreateTab("Main")
 local SellTab = CreateTab("Sell")
 local CollectTab = CreateTab("Collect")
 
--- ================= [ FUNCTION: AUTO SELL LOGIC ] ================= --
-local function ProcessAutoSell()
+-- ================= [ SCANNING FUNCTIONS (สแกนชื่อไม่ซ้ำ) ] ================= --
+
+-- 1. สแกนหาตัวละคร/สัตว์เลี้ยง ในกระเป๋า
+local function GetUniquePetNames()
+    local petNames = {}
+    local seen = {}
+
     pcall(function()
-        local mainGui = player.PlayerGui:FindFirstChild("Main")
-        if not mainGui then return end
-        
-        local scrollingFrame = mainGui:FindFirstChild("Pet_Main")
-            and mainGui.Pet_Main:FindFirstChild("Pet")
-            and mainGui.Pet_Main.Pet:FindFirstChild("zheng")
-            and mainGui.Pet_Main.Pet.zheng:FindFirstChild("wuqi")
-            and mainGui.Pet_Main.Pet.zheng.wuqi:FindFirstChild("Right")
-            and mainGui.Pet_Main.Pet.zheng.wuqi.Right:FindFirstChild("ScrollingFrame")
+        local scrollingFrame = player.PlayerGui.Main.Pet_Main.Pet.zheng.wuqi.Right.ScrollingFrame
 
-        if not scrollingFrame then return end
+        for _, item in ipairs(scrollingFrame:GetChildren()) do
+            local button = item:FindFirstChild("Button")
+            local info = button and button:FindFirstChild("Info")
+            local zi = info and info:FindFirstChild("zi")
+            local nameObj = zi and zi:FindFirstChild("Name")
 
+            if nameObj then
+                local petName
+                if nameObj:IsA("TextLabel") or nameObj:IsA("TextButton") then
+                    petName = nameObj.Text
+                elseif nameObj:IsA("StringValue") then
+                    petName = nameObj.Value
+                end
+
+                if petName and petName ~= "" and not seen[petName] then
+                    seen[petName] = true
+                    table.insert(petNames, petName)
+                end
+            end
+        end
+    end)
+
+    return petNames
+end
+
+-- 2. สแกนหาไข่ ในกระเป๋า
+local function GetUniqueEggNames()
+    local eggNames = {}
+    local seen = {}
+
+    pcall(function()
+        local scrollingFrame = player.PlayerGui.Main.Pet_Main.Hatch.zheng.wuqi.Right.ScrollingFrame
+
+        for _, egg in ipairs(scrollingFrame:GetChildren()) do
+            local button = egg:FindFirstChild("Button")
+            local info = button and button:FindFirstChild("Info")
+            local zi = info and info:FindFirstChild("zi")
+            local nameObj = zi and zi:FindFirstChild("Name")
+
+            if nameObj then
+                local eggName
+                if nameObj:IsA("TextLabel") or nameObj:IsA("TextButton") then
+                    eggName = nameObj.Text
+                elseif nameObj:IsA("StringValue") then
+                    eggName = nameObj.Value
+                end
+
+                if eggName and eggName ~= "" and not seen[eggName] then
+                    seen[eggName] = true
+                    table.insert(eggNames, eggName)
+                end
+            end
+        end
+    end)
+
+    return eggNames
+end
+
+-- ================= [ AUTO SELL FUNCTIONS ] ================= --
+
+-- 1. ขายสัตว์เลี้ยงตามรายชื่อที่เลือก
+local function ProcessAutoSellPets()
+    pcall(function()
+        local scrollingFrame = player.PlayerGui.Main.Pet_Main.Pet.zheng.wuqi.Right.ScrollingFrame
         local deleteRE = ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Pet_Server"):WaitForChild("DeleteRE")
 
         for _, item in ipairs(scrollingFrame:GetChildren()) do
@@ -425,11 +503,49 @@ local function ProcessAutoSell()
             local nameObj = zi and zi:FindFirstChild("Name")
 
             if nameObj then
-                local petName = tostring(nameObj.Text or nameObj.Value or "")
-                
-                if _G.SellList[petName] then
+                local petName
+                if nameObj:IsA("TextLabel") or nameObj:IsA("TextButton") then
+                    petName = nameObj.Text
+                elseif nameObj:IsA("StringValue") then
+                    petName = nameObj.Value
+                end
+
+                if petName and _G.SellList[petName] then
                     local uuid = item.Name
-                    print("กำลังขาย:", petName, "| UUID:", uuid)
+                    print("กำลังขายสัตว์เลี้ยง:", petName, "| UUID:", uuid)
+                    deleteRE:FireServer(uuid)
+                    task.wait(0.2)
+                end
+            end
+        end
+    end)
+end
+
+-- 2. ขายไข่ตามรายชื่อที่เลือก
+local function ProcessAutoSellEggs()
+    pcall(function()
+        local scrollingFrame = player.PlayerGui.Main.Pet_Main.Hatch.zheng.wuqi.Right.ScrollingFrame
+        local deleteRE = ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Pet_Server"):WaitForChild("DeleteRE")
+
+        for _, egg in ipairs(scrollingFrame:GetChildren()) do
+            if not _G.AutoSellEggs then break end
+
+            local button = egg:FindFirstChild("Button")
+            local info = button and button:FindFirstChild("Info")
+            local zi = info and info:FindFirstChild("zi")
+            local nameObj = zi and zi:FindFirstChild("Name")
+
+            if nameObj then
+                local eggName
+                if nameObj:IsA("TextLabel") or nameObj:IsA("TextButton") then
+                    eggName = nameObj.Text
+                elseif nameObj:IsA("StringValue") then
+                    eggName = nameObj.Value
+                end
+
+                if eggName and _G.EggSellList[eggName] then
+                    local uuid = egg.Name
+                    print("กำลังขายไข่:", eggName, "| UUID:", uuid)
                     deleteRE:FireServer(uuid)
                     task.wait(0.2)
                 end
@@ -488,7 +604,7 @@ CreateToggle(MainTab, "สุ่มตัวไว", false, function(Value)
     end
 end)
 
--- 3. กล่องข้อความรายละเอียดฟังก์ชั่นปั้มเหรียญ (แสดงตรงพื้นที่ที่วงไว้)
+-- 3. กล่องข้อความรายละเอียดฟังก์ชั่นปั้มเหรียญ
 CreateInfoBox(
     MainTab, 
     "คำแนะนำฟังก์ชั่นปั้มเหรียญ", 
@@ -499,22 +615,61 @@ CreateInfoBox(
 
 -- ================= [ ITEMS IN SELL TAB ] ================= --
 
--- 1. สวิตช์เปิด/ปิด ขายอัตโนมัติ
-CreateToggle(SellTab, "ขายอัตโนมัติ", false, function(Value)
+-- 1. สวิตช์ขายตัวละครอัตโนมัติ
+CreateToggle(SellTab, "ขายตัวละครอัตโนมัติ", false, function(Value)
     _G.AutoSellPets = Value
     if Value then
         task.spawn(function()
             while _G.AutoSellPets do
-                ProcessAutoSell()
+                ProcessAutoSellPets()
                 task.wait(1.5)
             end
         end)
     end
 end)
 
--- 2. Dropdown เลือกตัวละครที่จะขาย
-local availablePets = {"Jack", "Hex", "Vampire: Drake"}
-CreateMultiDropdown(SellTab, "เลือกตัวที่จะขาย", availablePets)
+-- 2. Dropdown เลือกตัวละครที่จะขาย (สแกน Dynamic ไม่ใส่ชื่อซ้ำ)
+local updatePetDropdown = CreateDynamicDropdown(SellTab, "เลือกตัวที่จะขาย", _G.SellList)
+
+-- 3. ปุ่มรีเฟรชสแกนหาตัวละครในกระเป๋า
+CreateButton(SellTab, "🔄 รีเฟรชรายชื่อตัวละคร", function()
+    local detectedPets = GetUniquePetNames()
+    updatePetDropdown(detectedPets)
+    print("สแกนพบตัวละครทั้งหมด:", #detectedPets, "ประเภท")
+end)
+
+-- 4. สวิตช์ขายไข่อัตโนมัติ
+CreateToggle(SellTab, "ขายไข่อัตโนมัติ", false, function(Value)
+    _G.AutoSellEggs = Value
+    if Value then
+        task.spawn(function()
+            while _G.AutoSellEggs do
+                ProcessAutoSellEggs()
+                task.wait(1.5)
+            end
+        end)
+    end
+end)
+
+-- 5. Dropdown เลือกไข่ที่จะขาย (สแกน Dynamic ไม่ใส่ชื่อซ้ำ)
+local updateEggDropdown = CreateDynamicDropdown(SellTab, "เลือกไข่ที่จะขาย", _G.EggSellList)
+
+-- 6. ปุ่มรีเฟรชสแกนหาไข่ในกระเป๋า
+CreateButton(SellTab, "🔄 รีเฟรชรายชื่อไข่", function()
+    local detectedEggs = GetUniqueEggNames()
+    updateEggDropdown(detectedEggs)
+    print("สแกนพบไข่ทั้งหมด:", #detectedEggs, "ประเภท")
+end)
+
+-- สแกนหาตัวละครและไข่รอบแรกอัตโนมัติเมื่อเปิดสคริปต์
+task.spawn(function()
+    task.wait(1)
+    local initialPets = GetUniquePetNames()
+    updatePetDropdown(initialPets)
+
+    local initialEggs = GetUniqueEggNames()
+    updateEggDropdown(initialEggs)
+end)
 
 -- โชว์หน้าแรกเริ่มต้น
 Tabs[1].Page.Visible = true
