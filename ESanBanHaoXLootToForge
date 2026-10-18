@@ -14,13 +14,20 @@ if SafeParent:FindFirstChild("ISAN_BAN_HAO_HUB") then
 end
 
 -- [[ TOGGLE & SELECTION STATES ]] --
+_G.AutoFarmCoinsV2 = false
 _G.AutoLuckRoll = false
 _G.AutoSellPets = false
 _G.AutoSellEggs = false
+_G.AutoUpgradePets = false
 
--- ตารางเก็บรายชื่อสัตว์เลี้ยงและไข่ที่เลือกขาย
+-- การตั้งค่าสำหรับการอัปเกรดตัวละคร
+_G.UpgradeBuff = "Golden" -- Golden, Diamond, Rainbow
+_G.UpgradeAmount = 5       -- จำนวนวัตถุดิบ (1 - 6)
+
+-- ตารางเก็บรายชื่อสัตว์เลี้ยง/ไข่ที่เลือกขาย และเลือกอัปเกรด
 _G.SellList = {}
 _G.EggSellList = {}
+_G.UpgradeList = {} -- ตารางเก็บตัวละครที่เลือกให้ทำการอัปเกรด
 
 -- [[ THEME SETUP ]] --
 local Theme = {
@@ -56,8 +63,8 @@ btnStroke.Color = Theme.Accent
 
 -- [ หน้าต่างหลัก (Main Window) ]
 local Main = Instance.new("Frame", ScreenGui)
-Main.Size = UDim2.new(0, 290, 0, 380)
-Main.Position = UDim2.new(0.5, -145, 0.5, -190)
+Main.Size = UDim2.new(0, 290, 0, 420)
+Main.Position = UDim2.new(0.5, -145, 0.5, -210)
 Main.BackgroundColor3 = Theme.Background
 Main.BorderSizePixel = 0
 Main.ClipsDescendants = true
@@ -134,7 +141,7 @@ local Subtitle = Instance.new("TextLabel")
 Subtitle.Size = UDim2.new(0, 160, 0, 16) 
 Subtitle.Position = UDim2.new(0, 52, 0, 26) 
 Subtitle.BackgroundTransparency = 1 
-Subtitle.Text = "เกมตีดาบเด้อ" 
+Subtitle.Text = "ระบบฟาร์มและขายสัตว์เลี้ยง/ไข่" 
 Subtitle.TextColor3 = Theme.Accent 
 Subtitle.TextSize = 10 
 Subtitle.Font = Enum.Font.GothamSemibold 
@@ -276,7 +283,99 @@ local function CreateToggle(parent, text, defaultState, callback)
     end)
 end
 
--- [[ FUNCTION DROPDOWN CREATOR ]] --
+-- [[ FUNCTION SINGLE SELECT DROPDOWN CREATOR ]] --
+local function CreateSingleDropdown(parent, titleText, options, defaultSelected, callback)
+    local Container = Instance.new("Frame", parent)
+    Container.Size = UDim2.new(0.9, 0, 0, 40)
+    Container.BackgroundColor3 = Theme.SurfaceLight
+    Container.ClipsDescendants = true
+    Instance.new("UICorner", Container).CornerRadius = UDim.new(0, 8)
+
+    local Header = Instance.new("TextButton", Container)
+    Header.Size = UDim2.new(1, 0, 0, 40)
+    Header.BackgroundTransparency = 1
+    Header.Text = ""
+
+    local TitleLabel = Instance.new("TextLabel", Header)
+    TitleLabel.Size = UDim2.new(0.5, 0, 1, 0)
+    TitleLabel.Position = UDim2.new(0, 10, 0, 0)
+    TitleLabel.BackgroundTransparency = 1
+    TitleLabel.Text = titleText
+    TitleLabel.TextColor3 = Theme.Text
+    TitleLabel.TextSize = 12
+    TitleLabel.Font = Enum.Font.GothamBold
+    TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+    local SelectedLabel = Instance.new("TextLabel", Header)
+    SelectedLabel.Size = UDim2.new(0.4, 0, 1, 0)
+    SelectedLabel.Position = UDim2.new(0.5, -15, 0, 0)
+    SelectedLabel.BackgroundTransparency = 1
+    SelectedLabel.Text = tostring(defaultSelected)
+    SelectedLabel.TextColor3 = Theme.Accent
+    SelectedLabel.TextSize = 11
+    SelectedLabel.Font = Enum.Font.GothamSemibold
+    SelectedLabel.TextXAlignment = Enum.TextXAlignment.Right
+
+    local Arrow = Instance.new("TextLabel", Header)
+    Arrow.Size = UDim2.new(0, 30, 1, 0)
+    Arrow.Position = UDim2.new(1, -30, 0, 0)
+    Arrow.BackgroundTransparency = 1
+    Arrow.Text = "▼"
+    Arrow.TextColor3 = Theme.Accent
+    Arrow.TextSize = 12
+    Arrow.Font = Enum.Font.GothamBold
+
+    local OptionList = Instance.new("Frame", Container)
+    OptionList.Size = UDim2.new(1, 0, 0, #options * 30)
+    OptionList.Position = UDim2.new(0, 0, 0, 40)
+    OptionList.BackgroundTransparency = 1
+
+    local ListLayout = Instance.new("UIListLayout", OptionList)
+    ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+    local isOpen = false
+    Header.MouseButton1Click:Connect(function()
+        isOpen = not isOpen
+        Arrow.Text = isOpen and "▲" or "▼"
+        local targetHeight = isOpen and (40 + #options * 30) or 40
+        TweenService:Create(Container, TweenInfo.new(0.25), {Size = UDim2.new(0.9, 0, 0, targetHeight)}):Play()
+    end)
+
+    for idx, optValue in ipairs(options) do
+        local OptBtn = Instance.new("TextButton", OptionList)
+        OptBtn.Size = UDim2.new(1, 0, 0, 30)
+        OptBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
+        OptBtn.BorderSizePixel = 0
+        OptBtn.Text = ""
+
+        local OptLabel = Instance.new("TextLabel", OptBtn)
+        OptLabel.Size = UDim2.new(0.8, 0, 1, 0)
+        OptLabel.Position = UDim2.new(0, 20, 0, 0)
+        OptLabel.BackgroundTransparency = 1
+        OptLabel.Text = tostring(optValue)
+        OptLabel.TextColor3 = (optValue == defaultSelected) and Theme.Accent or Theme.TextDim
+        OptLabel.TextSize = 11
+        OptLabel.Font = Enum.Font.Gotham
+        OptLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+        OptBtn.MouseButton1Click:Connect(function()
+            SelectedLabel.Text = tostring(optValue)
+            isOpen = false
+            Arrow.Text = "▼"
+            TweenService:Create(Container, TweenInfo.new(0.25), {Size = UDim2.new(0.9, 0, 0, 40)}):Play()
+            
+            for _, btn in ipairs(OptionList:GetChildren()) do
+                if btn:IsA("TextButton") then
+                    btn.TextLabel.TextColor3 = Theme.TextDim
+                end
+            end
+            OptLabel.TextColor3 = Theme.Accent
+            pcall(callback, optValue)
+        end)
+    end
+end
+
+-- [[ FUNCTION DYNAMIC MULTI DROPDOWN CREATOR ]] --
 local function CreateDynamicDropdown(parent, titleText, targetTable)
     local Container = Instance.new("Frame", parent)
     Container.Size = UDim2.new(0.9, 0, 0, 40)
@@ -418,9 +517,8 @@ local MainTab = CreateTab("Main")
 local SellTab = CreateTab("Sell")
 local CollectTab = CreateTab("Collect")
 
--- ================= [ SCANNING FUNCTIONS (สแกนชื่อไม่ซ้ำ) ] ================= --
+-- ================= [ SCANNING FUNCTIONS ] ================= --
 
--- 1. สแกนหาตัวละคร/สัตว์เลี้ยง ในกระเป๋า
 local function GetUniquePetNames()
     local petNames = {}
     local seen = {}
@@ -453,7 +551,6 @@ local function GetUniquePetNames()
     return petNames
 end
 
--- 2. สแกนหาไข่ ในกระเป๋า
 local function GetUniqueEggNames()
     local eggNames = {}
     local seen = {}
@@ -488,7 +585,6 @@ end
 
 -- ================= [ AUTO SELL FUNCTIONS ] ================= --
 
--- 1. ขายสัตว์เลี้ยงตามรายชื่อที่เลือก
 local function ProcessAutoSellPets()
     pcall(function()
         local scrollingFrame = player.PlayerGui.Main.Pet_Main.Pet.zheng.wuqi.Right.ScrollingFrame
@@ -512,16 +608,15 @@ local function ProcessAutoSellPets()
 
                 if petName and _G.SellList[petName] then
                     local uuid = item.Name
-                    print("กำลังขายสัตว์เลี้ยง:", petName, "| UUID:", uuid)
-                    deleteRE:FireServer(uuid)
-                    task.wait(0.2)
+                    task.spawn(function()
+                        deleteRE:FireServer(uuid)
+                    end)
                 end
             end
         end
     end)
 end
 
--- 2. ขายไข่ตามรายชื่อที่เลือก
 local function ProcessAutoSellEggs()
     pcall(function()
         local scrollingFrame = player.PlayerGui.Main.Pet_Main.Hatch.zheng.wuqi.Right.ScrollingFrame
@@ -545,10 +640,70 @@ local function ProcessAutoSellEggs()
 
                 if eggName and _G.EggSellList[eggName] then
                     local uuid = egg.Name
-                    print("กำลังขายไข่:", eggName, "| UUID:", uuid)
-                    deleteRE:FireServer(uuid)
-                    task.wait(0.2)
+                    task.spawn(function()
+                        deleteRE:FireServer(uuid)
+                    end)
                 end
+            end
+        end
+    end)
+end
+
+-- ================= [ AUTO UPGRADE LOGIC (FILTERED BY UPGRADELIST) ] ================= --
+
+local function ProcessAutoUpgradePets()
+    pcall(function()
+        local scrollingFrame = player.PlayerGui.Main.Pet_Main.Pet.zheng.wuqi.Right.ScrollingFrame
+        local upgradeRF = ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Pet_Server"):WaitForChild("TryUpGradePetRF")
+
+        local petGroups = {}
+
+        for _, item in ipairs(scrollingFrame:GetChildren()) do
+            if not _G.AutoUpgradePets then break end
+
+            local button = item:FindFirstChild("Button")
+            local info = button and button:FindFirstChild("Info")
+            local zi = info and info:FindFirstChild("zi")
+            local nameObj = zi and zi:FindFirstChild("Name")
+
+            if nameObj then
+                local petName
+                if nameObj:IsA("TextLabel") or nameObj:IsA("TextButton") then
+                    petName = nameObj.Text
+                elseif nameObj:IsA("StringValue") then
+                    petName = nameObj.Value
+                end
+
+                -- เช็คเฉพาะตัวละครที่ถูกเลือกใน UpgradeList เท่านั้น
+                if petName and _G.UpgradeList[petName] then
+                    if not petGroups[petName] then
+                        petGroups[petName] = {}
+                    end
+                    table.insert(petGroups[petName], item.Name)
+                end
+            end
+        end
+
+        local targetAmount = tonumber(_G.UpgradeAmount) or 5
+
+        for petName, uuids in pairs(petGroups) do
+            if not _G.AutoUpgradePets then break end
+
+            while #uuids >= targetAmount and _G.AutoUpgradePets do
+                local payload = {}
+                for i = 1, targetAmount do
+                    local uuid = table.remove(uuids, 1)
+                    if uuid then
+                        payload[uuid] = true
+                    end
+                end
+
+                print("กำลังอัปเกรด:", petName, "| จำนวน:", targetAmount, "| บัฟ:", _G.UpgradeBuff)
+                pcall(function()
+                    upgradeRF:InvokeServer(payload, _G.UpgradeBuff)
+                end)
+                
+                task.wait(0.2)
             end
         end
     end)
@@ -556,7 +711,6 @@ end
 
 -- ================= [ ITEMS IN MAIN TAB ] ================= --
 
--- 1. ฟังก์ชั่น ปั้มเหรียญ
 CreateButton(MainTab, "ปั้มเหรียญ", function()
     local DS = game:GetService("ReplicatedStorage").Remote.Dungeon_Server
     DS.TryClaimDailyDunTicRE:FireServer()
@@ -583,7 +737,54 @@ CreateButton(MainTab, "ปั้มเหรียญ", function()
     print("[*] done, rounds:", rounds)
 end)
 
--- 2. ฟังก์ชั่น สุ่มตัวไว
+CreateToggle(MainTab, "ปั้มเหรียญ v2", false, function(Value)
+    _G.AutoFarmCoinsV2 = Value
+    if Value then
+        task.spawn(function()
+            local remoteFolder = ReplicatedStorage:WaitForChild("Remote", 10)
+            local DS = remoteFolder and remoteFolder:WaitForChild("Dungeon_Server", 10)
+            
+            if not DS then return end
+
+            while _G.AutoFarmCoinsV2 do
+                pcall(function()
+                    DS.TryClaimDailyDunTicRE:FireServer()
+                    task.wait(0.2)
+                    if not _G.AutoFarmCoinsV2 then return end
+
+                    local entered = DS.TryIntoDungeonRF:InvokeServer(true, 50)
+                    task.wait(0.2)
+                    if not _G.AutoFarmCoinsV2 then return end
+                    
+                    local done = false
+                    local rounds = 0
+                    
+                    for _ = 1, 5 do
+                        task.spawn(function()
+                            while not done and _G.AutoFarmCoinsV2 do
+                                DS.StartRoundRE:FireServer(50)
+                                local result = DS.CompleteRoundRF:InvokeServer(50)
+                                if type(result) ~= "table" then
+                                    done = true
+                                    break
+                                end
+                                rounds += 1
+                                task.wait(0.05)
+                            end
+                        end)
+                    end
+                    
+                    repeat 
+                        task.wait(0.5) 
+                    until done or not _G.AutoFarmCoinsV2
+                end)
+                task.wait(1)
+            end
+        end)
+    end
+end)
+
+-- ฟังก์ชั่น สุ่มตัวไว (เพิ่มความเร็วขั้นสุด ยิงแบบ Multi-Threaded)
 CreateToggle(MainTab, "สุ่มตัวไว", false, function(Value)
     _G.AutoLuckRoll = Value
     if Value then
@@ -595,88 +796,118 @@ CreateToggle(MainTab, "สุ่มตัวไว", false, function(Value)
             if not luckPetRF then return end
 
             while _G.AutoLuckRoll do
-                pcall(function()
-                    luckPetRF:InvokeServer()
+                task.spawn(function()
+                    pcall(function()
+                        luckPetRF:InvokeServer()
+                    end)
                 end)
-                task.wait(0.1)
+                task.wait(0.001) -- ยิงความเร็วสูง
             end
         end)
     end
 end)
 
--- 3. กล่องข้อความรายละเอียดฟังก์ชั่นปั้มเหรียญ
 CreateInfoBox(
     MainTab, 
     "คำแนะนำฟังก์ชั่นปั้มเหรียญ", 
     "• ต้องมีตั๋วลงหอคอยถึงจะทำได้\n" ..
-    "• ให้กดปุ่มทุกครั้งหลังออกจากหอคอย\n" ..
-    "• ถ้ากดปุ่มแล้วปั้มไม่ได้ ให้วิ่งไปที่หอคอยแล้วกดเข้าไป จากนั้นค่อยกดปุ่มปั้มเหรียญอีกครั้ง"
+    "• ปุ่มปกติ: กดรันทุกครั้งหลังออกจากหอคอย\n" ..
+    "• ปั้ม v2: เปิดสวิตช์ทิ้งไว้ระบบจะวนลูปให้เอง\n" ..
+    "• ถ้าปั้มไม่ได้ ให้วิ่งไปที่หอคอยแล้วกดเข้าไป 1 ครั้ง จากนั้นค่อยกดใช้งาน"
 )
 
 -- ================= [ ITEMS IN SELL TAB ] ================= --
 
--- 1. สวิตช์ขายตัวละครอัตโนมัติ
 CreateToggle(SellTab, "ขายตัวละครอัตโนมัติ", false, function(Value)
     _G.AutoSellPets = Value
     if Value then
         task.spawn(function()
             while _G.AutoSellPets do
                 ProcessAutoSellPets()
-                task.wait(1.5)
+                task.wait(0.1)
             end
         end)
     end
 end)
 
--- 2. Dropdown เลือกตัวละครที่จะขาย (สแกน Dynamic ไม่ใส่ชื่อซ้ำ)
 local updatePetDropdown = CreateDynamicDropdown(SellTab, "เลือกตัวที่จะขาย", _G.SellList)
 
--- 3. ปุ่มรีเฟรชสแกนหาตัวละครในกระเป๋า
 CreateButton(SellTab, "🔄 รีเฟรชรายชื่อตัวละคร", function()
     local detectedPets = GetUniquePetNames()
     updatePetDropdown(detectedPets)
-    print("สแกนพบตัวละครทั้งหมด:", #detectedPets, "ประเภท")
+    print("สแกนพบตัวละครทั้งหมด (Sell):", #detectedPets, "ประเภท")
 end)
 
--- 4. สวิตช์ขายไข่อัตโนมัติ
 CreateToggle(SellTab, "ขายไข่อัตโนมัติ", false, function(Value)
     _G.AutoSellEggs = Value
     if Value then
         task.spawn(function()
             while _G.AutoSellEggs do
                 ProcessAutoSellEggs()
-                task.wait(1.5)
+                task.wait(0.1)
             end
         end)
     end
 end)
 
--- 5. Dropdown เลือกไข่ที่จะขาย (สแกน Dynamic ไม่ใส่ชื่อซ้ำ)
 local updateEggDropdown = CreateDynamicDropdown(SellTab, "เลือกไข่ที่จะขาย", _G.EggSellList)
 
--- 6. ปุ่มรีเฟรชสแกนหาไข่ในกระเป๋า
 CreateButton(SellTab, "🔄 รีเฟรชรายชื่อไข่", function()
     local detectedEggs = GetUniqueEggNames()
     updateEggDropdown(detectedEggs)
     print("สแกนพบไข่ทั้งหมด:", #detectedEggs, "ประเภท")
 end)
 
--- สแกนหาตัวละครและไข่รอบแรกอัตโนมัติเมื่อเปิดสคริปต์
+-- ================= [ ITEMS IN COLLECT TAB ] ================= --
+
+-- 1. สวิตช์เปิด/ปิด อัปเกรดตัวละครอัตโนมัติ
+CreateToggle(CollectTab, "อัปเกรดตัวละครอัตโนมัติ", false, function(Value)
+    _G.AutoUpgradePets = Value
+    if Value then
+        task.spawn(function()
+            while _G.AutoUpgradePets do
+                ProcessAutoUpgradePets()
+                task.wait(0.5)
+            end
+        end)
+    end
+end)
+
+-- 2. Dropdown เลือกตัวละครที่จะอัปเกรด (สแกนแบบ Dynamic)
+local updateUpgradePetDropdown = CreateDynamicDropdown(CollectTab, "เลือกตัวที่จะอัปเกรด", _G.UpgradeList)
+
+-- 3. ปุ่มรีเฟรชสแกนหาตัวละครในกระเป๋าสำหรับอัปเกรด
+CreateButton(CollectTab, "🔄 รีเฟรชรายชื่อตัวละคร (อัปเกรด)", function()
+    local detectedPets = GetUniquePetNames()
+    updateUpgradePetDropdown(detectedPets)
+    print("สแกนพบตัวละครทั้งหมด (Upgrade):", #detectedPets, "ประเภท")
+end)
+
+-- 4. Dropdown เลือกประเภทบัฟ (Golden, Diamond, Rainbow)
+CreateSingleDropdown(CollectTab, "เลือกประเภทบัฟ", {"Golden", "Diamond", "Rainbow"}, "Golden", function(selected)
+    _G.UpgradeBuff = selected
+end)
+
+-- 5. Dropdown เลือกจำนวนวัตถุดิบในการรวม (1 - 6 ตัว)
+CreateSingleDropdown(CollectTab, "จำนวนวัตถุดิบที่ใช้รวม", {1, 2, 3, 4, 5, 6}, 5, function(selected)
+    _G.UpgradeAmount = selected
+end)
+
+-- สแกนรายชื่อรอบแรกอัตโนมัติเมื่อเปิดสคริปต์
 task.spawn(function()
     task.wait(1)
     local initialPets = GetUniquePetNames()
     updatePetDropdown(initialPets)
+    updateUpgradePetDropdown(initialPets)
 
     local initialEggs = GetUniqueEggNames()
     updateEggDropdown(initialEggs)
 end)
 
--- โชว์หน้าแรกเริ่มต้น
 Tabs[1].Page.Visible = true
 Tabs[1].Btn.BackgroundColor3 = Theme.Accent
 Tabs[1].Btn.TextColor3 = Color3.new(0,0,0)
 
--- [ LOGIC: เปิด/ปิดหน้าต่างหลักด้วยปุ่มโลโก้ ]
 toggleBtn.MouseButton1Click:Connect(function()
     Main.Visible = not Main.Visible
 end)
