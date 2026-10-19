@@ -27,7 +27,7 @@ _G.UpgradeAmount = 5       -- จำนวนวัตถุดิบ (1 - 6)
 -- ตารางเก็บรายชื่อสัตว์เลี้ยง/ไข่ที่เลือกขาย และเลือกอัปเกรด
 _G.SellList = {}
 _G.EggSellList = {}
-_G.UpgradeList = {} -- ตารางเก็บตัวละครที่เลือกให้ทำการอัปเกรด
+_G.UpgradeList = {}
 
 -- [[ THEME SETUP ]] --
 local Theme = {
@@ -649,7 +649,28 @@ local function ProcessAutoSellEggs()
     end)
 end
 
--- ================= [ AUTO UPGRADE LOGIC (FILTERED BY UPGRADELIST) ] ================= --
+-- ================= [ AUTO UPGRADE LOGIC (STRICT BUFF LOCKING) ] ================= --
+
+local function GetPetQuality(item)
+    local isGolden = item:FindFirstChild("Golden") or item:FindFirstChild("Gold")
+    local isDiamond = item:FindFirstChild("Diamond")
+    local isRainbow = item:FindFirstChild("Rainbow")
+
+    for _, desc in ipairs(item:GetDescendants()) do
+        if desc:IsA("TextLabel") or desc:IsA("StringValue") then
+            local text = tostring(desc.Text or desc.Value)
+            if string.find(text, "Rainbow") then return "Rainbow" end
+            if string.find(text, "Diamond") then return "Diamond" end
+            if string.find(text, "Golden") or string.find(text, "Gold") then return "Golden" end
+        end
+    end
+
+    if isRainbow then return "Rainbow" end
+    if isDiamond then return "Diamond" end
+    if isGolden then return "Golden" end
+
+    return "Normal"
+end
 
 local function ProcessAutoUpgradePets()
     pcall(function()
@@ -657,6 +678,13 @@ local function ProcessAutoUpgradePets()
         local upgradeRF = ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Pet_Server"):WaitForChild("TryUpGradePetRF")
 
         local petGroups = {}
+
+        local requiredQuality = "Normal"
+        if _G.UpgradeBuff == "Diamond" then
+            requiredQuality = "Golden"
+        elseif _G.UpgradeBuff == "Rainbow" then
+            requiredQuality = "Diamond"
+        end
 
         for _, item in ipairs(scrollingFrame:GetChildren()) do
             if not _G.AutoUpgradePets then break end
@@ -674,12 +702,15 @@ local function ProcessAutoUpgradePets()
                     petName = nameObj.Value
                 end
 
-                -- เช็คเฉพาะตัวละครที่ถูกเลือกใน UpgradeList เท่านั้น
                 if petName and _G.UpgradeList[petName] then
-                    if not petGroups[petName] then
-                        petGroups[petName] = {}
+                    local currentQuality = GetPetQuality(item)
+                    
+                    if currentQuality == requiredQuality then
+                        if not petGroups[petName] then
+                            petGroups[petName] = {}
+                        end
+                        table.insert(petGroups[petName], item.Name)
                     end
-                    table.insert(petGroups[petName], item.Name)
                 end
             end
         end
@@ -698,12 +729,11 @@ local function ProcessAutoUpgradePets()
                     end
                 end
 
-                print("กำลังอัปเกรด:", petName, "| จำนวน:", targetAmount, "| บัฟ:", _G.UpgradeBuff)
                 pcall(function()
                     upgradeRF:InvokeServer(payload, _G.UpgradeBuff)
                 end)
                 
-                task.wait(0.2)
+                task.wait(0.8)
             end
         end
     end)
@@ -737,6 +767,7 @@ CreateButton(MainTab, "ปั้มเหรียญ", function()
     print("[*] done, rounds:", rounds)
 end)
 
+-- ฟังก์ชั่น ปั้มเหรียญ v2 (ยิงรัวๆ วนลูปต่อเนื่องเหมือนกดปุ่มรัวๆ ด้วยมือ)
 CreateToggle(MainTab, "ปั้มเหรียญ v2", false, function(Value)
     _G.AutoFarmCoinsV2 = Value
     if Value then
@@ -748,18 +779,16 @@ CreateToggle(MainTab, "ปั้มเหรียญ v2", false, function(Value
 
             while _G.AutoFarmCoinsV2 do
                 pcall(function()
-                    DS.TryClaimDailyDunTicRE:FireServer()
-                    task.wait(0.2)
+                    -- ยิงคำสั่งเริ่มต้นและเข้าดันเจี้ยนแบบรัวๆ
+                    task.spawn(function() DS.TryClaimDailyDunTicRE:FireServer() end)
+                    task.spawn(function() DS.TryIntoDungeonRF:InvokeServer(true, 50) end)
+                    task.wait(0.1)
+
                     if not _G.AutoFarmCoinsV2 then return end
 
-                    local entered = DS.TryIntoDungeonRF:InvokeServer(true, 50)
-                    task.wait(0.2)
-                    if not _G.AutoFarmCoinsV2 then return end
-                    
                     local done = false
-                    local rounds = 0
-                    
-                    for _ = 1, 5 do
+                    -- เปิดหลายเธรดช่วยยิง Start/Complete รัวๆ แบบไม่มียั้ง
+                    for _ = 1, 8 do
                         task.spawn(function()
                             while not done and _G.AutoFarmCoinsV2 do
                                 DS.StartRoundRE:FireServer(50)
@@ -768,23 +797,22 @@ CreateToggle(MainTab, "ปั้มเหรียญ v2", false, function(Value
                                     done = true
                                     break
                                 end
-                                rounds += 1
-                                task.wait(0.05)
+                                task.wait()
                             end
                         end)
                     end
-                    
+
                     repeat 
-                        task.wait(0.5) 
+                        task.wait(0.05) 
                     until done or not _G.AutoFarmCoinsV2
                 end)
-                task.wait(1)
+                task.wait(0.05) -- วนลูปเริ่มรอบใหม่ทันทีอย่างรวดเร็ว
             end
         end)
     end
 end)
 
--- ฟังก์ชั่น สุ่มตัวไว (เพิ่มความเร็วขั้นสุด ยิงแบบ Multi-Threaded)
+-- ฟังก์ชั่น สุ่มตัวไว (เร่งความเร็วสูงสุด)
 CreateToggle(MainTab, "สุ่มตัวไว", false, function(Value)
     _G.AutoLuckRoll = Value
     if Value then
@@ -796,12 +824,14 @@ CreateToggle(MainTab, "สุ่มตัวไว", false, function(Value)
             if not luckPetRF then return end
 
             while _G.AutoLuckRoll do
-                task.spawn(function()
-                    pcall(function()
-                        luckPetRF:InvokeServer()
+                for _ = 1, 3 do
+                    task.spawn(function()
+                        pcall(function()
+                            luckPetRF:InvokeServer()
+                        end)
                     end)
-                end)
-                task.wait(0.001) -- ยิงความเร็วสูง
+                end
+                task.wait()
             end
         end)
     end
@@ -812,8 +842,8 @@ CreateInfoBox(
     "คำแนะนำฟังก์ชั่นปั้มเหรียญ", 
     "• ต้องมีตั๋วลงหอคอยถึงจะทำได้\n" ..
     "• ปุ่มปกติ: กดรันทุกครั้งหลังออกจากหอคอย\n" ..
-    "• ปั้ม v2: เปิดสวิตช์ทิ้งไว้ระบบจะวนลูปให้เอง\n" ..
-    "• ถ้าปั้มไม่ได้ ให้วิ่งไปที่หอคอยแล้วกดเข้าไป 1 ครั้ง จากนั้นค่อยกดใช้งาน"
+    "• ปั้ม v2: เปิดสวิตช์ทิ้งไว้ระบบจะวนลูปยิงคำสั่งรัวๆ ให้อัตโนมัติ\n" ..
+    "• ถ้าปั้มไม่ได้ ให้วิ่งไปที่หอคอยแล้วกดเข้าไป 1 ครั้ง จากนั้นค่อยเปิดใช้งาน"
 )
 
 -- ================= [ ITEMS IN SELL TAB ] ================= --
@@ -860,40 +890,34 @@ end)
 
 -- ================= [ ITEMS IN COLLECT TAB ] ================= --
 
--- 1. สวิตช์เปิด/ปิด อัปเกรดตัวละครอัตโนมัติ
 CreateToggle(CollectTab, "อัปเกรดตัวละครอัตโนมัติ", false, function(Value)
     _G.AutoUpgradePets = Value
     if Value then
         task.spawn(function()
             while _G.AutoUpgradePets do
                 ProcessAutoUpgradePets()
-                task.wait(0.5)
+                task.wait(1)
             end
         end)
     end
 end)
 
--- 2. Dropdown เลือกตัวละครที่จะอัปเกรด (สแกนแบบ Dynamic)
 local updateUpgradePetDropdown = CreateDynamicDropdown(CollectTab, "เลือกตัวที่จะอัปเกรด", _G.UpgradeList)
 
--- 3. ปุ่มรีเฟรชสแกนหาตัวละครในกระเป๋าสำหรับอัปเกรด
 CreateButton(CollectTab, "🔄 รีเฟรชรายชื่อตัวละคร (อัปเกรด)", function()
     local detectedPets = GetUniquePetNames()
     updateUpgradePetDropdown(detectedPets)
     print("สแกนพบตัวละครทั้งหมด (Upgrade):", #detectedPets, "ประเภท")
 end)
 
--- 4. Dropdown เลือกประเภทบัฟ (Golden, Diamond, Rainbow)
 CreateSingleDropdown(CollectTab, "เลือกประเภทบัฟ", {"Golden", "Diamond", "Rainbow"}, "Golden", function(selected)
     _G.UpgradeBuff = selected
 end)
 
--- 5. Dropdown เลือกจำนวนวัตถุดิบในการรวม (1 - 6 ตัว)
 CreateSingleDropdown(CollectTab, "จำนวนวัตถุดิบที่ใช้รวม", {1, 2, 3, 4, 5, 6}, 5, function(selected)
     _G.UpgradeAmount = selected
 end)
 
--- สแกนรายชื่อรอบแรกอัตโนมัติเมื่อเปิดสคริปต์
 task.spawn(function()
     task.wait(1)
     local initialPets = GetUniquePetNames()
